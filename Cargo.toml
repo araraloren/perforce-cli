@@ -276,3 +276,7 @@ lt2024_2 = []
 lt2025_1 = []
 lt2025_2 = []
 lt2026_1 = []
+
+[[example]]
+name = "print"
+doc-scrape-examples = true
