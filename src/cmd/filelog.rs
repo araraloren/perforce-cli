@@ -25,7 +25,7 @@ pub struct FileLog {
 
     long_output: Option<LongOutput>,
 
-    max: Option<u32>,
+    limit: Option<u64>,
 
     skip_promoted: bool,
 
@@ -292,8 +292,8 @@ impl FileLog {
     /// `-m max`
     ///
     /// List only the first `max` changes per file output.
-    pub fn get_max(&self) -> Option<u32> {
-        self.max
+    pub fn get_limit(&self) -> Option<u64> {
+        self.limit
     }
 
     /// # Description
@@ -301,8 +301,8 @@ impl FileLog {
     /// `-m max`
     ///
     /// List only the first `max` changes per file output.
-    pub fn set_max(&mut self, v: u32) -> &mut Self {
-        self.max = Some(v);
+    pub fn set_limit(&mut self, v: u64) -> &mut Self {
+        self.limit = Some(v);
         self
     }
 
@@ -311,8 +311,8 @@ impl FileLog {
     /// `-m max`
     ///
     /// List only the first `max` changes per file output.
-    pub fn max(mut self, v: u32) -> Self {
-        self.max = Some(v);
+    pub fn limit(mut self, v: u64) -> Self {
+        self.limit = Some(v);
         self
     }
 
@@ -428,7 +428,7 @@ impl SubCommand for FileLog {
         if let Some(long_output) = self.long_output {
             command.arg(long_output.as_str());
         }
-        if let Some(max) = self.max {
+        if let Some(max) = self.limit {
             command.arg("-m").arg(max.to_string());
         }
         if self.skip_promoted {
@@ -496,8 +496,8 @@ mod tests {
     }
 
     #[test]
-    fn max() {
-        let filelog = FileLog::new("p4", GlobalOpts::default()).max(5);
+    fn limit() {
+        let filelog = FileLog::new("p4", GlobalOpts::default()).limit(5);
         let cmd = filelog.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["filelog", "-m", "5"]);
     }
@@ -530,7 +530,7 @@ mod tests {
             .content_history(true)
             .follow_branches(true)
             .long_output_full()
-            .max(5)
+            .limit(5)
             .skip_promoted(true)
             .shortened(true)
             .time(true);

@@ -8,8 +8,10 @@ use crate::cmd::Annotate;
 use crate::cmd::Archive;
 use crate::cmd::Attribute;
 use crate::cmd::Changes;
+use crate::cmd::Describe;
 use crate::cmd::Edit;
 use crate::cmd::FileLog;
+use crate::cmd::Where;
 use crate::global::GlobalOpts;
 
 pub mod cmd;
@@ -123,6 +125,11 @@ impl P4Cli {
         Changes::new(self.bin.clone(), self.global_opts.clone())
     }
 
+    /// Display the details of one or more changelists.
+    pub fn describe(&self) -> Describe {
+        Describe::new(self.bin.clone(), self.global_opts.clone())
+    }
+
     /// Open files in a client workspace for edit.
     pub fn edit(&self) -> Edit {
         Edit::new(self.bin.clone(), self.global_opts.clone())
@@ -131,6 +138,11 @@ impl P4Cli {
     /// Print detailed information about the revisions of files.
     pub fn filelog(&self) -> FileLog {
         FileLog::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Show where a particular file is located, as determined by the client view.
+    pub fn r#where(&self) -> Where {
+        Where::new(self.bin.clone(), self.global_opts.clone())
     }
 }
 

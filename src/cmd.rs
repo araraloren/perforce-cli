@@ -6,8 +6,10 @@ pub mod annotate;
 pub mod archive;
 pub mod attribute;
 pub mod changes;
+pub mod describe;
 pub mod edit;
 pub mod filelog;
+pub mod r#where;
 
 pub use add::Add;
 pub use admin::AdminEntry;
@@ -17,8 +19,10 @@ pub use annotate::Annotate;
 pub use archive::Archive;
 pub use attribute::Attribute;
 pub use changes::Changes;
+pub use describe::Describe;
 pub use edit::Edit;
 pub use filelog::FileLog;
+pub use r#where::Where;
 
 use std::{ffi::OsStr, process::Command};
 

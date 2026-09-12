@@ -82,7 +82,7 @@ pub struct Changes {
 
     long_output: Option<LongOutput>,
 
-    max: Option<u32>,
+    limit: Option<u64>,
 
     #[cfg(not(feature = "lt2017_2"))]
     reverse: bool,
@@ -395,8 +395,8 @@ impl Changes {
     /// `-m max`
     ///
     /// List only the highest numbered `max` changes.
-    pub fn get_max(&self) -> Option<u32> {
-        self.max
+    pub fn get_limit(&self) -> Option<u64> {
+        self.limit
     }
 
     /// # Description
@@ -404,8 +404,8 @@ impl Changes {
     /// `-m max`
     ///
     /// List only the highest numbered `max` changes.
-    pub fn set_max(&mut self, v: u32) -> &mut Self {
-        self.max = Some(v);
+    pub fn set_limit(&mut self, v: u64) -> &mut Self {
+        self.limit = Some(v);
         self
     }
 
@@ -414,8 +414,8 @@ impl Changes {
     /// `-m max`
     ///
     /// List only the highest numbered `max` changes.
-    pub fn max(mut self, v: u32) -> Self {
-        self.max = Some(v);
+    pub fn limit(mut self, v: u64) -> Self {
+        self.limit = Some(v);
         self
     }
 
@@ -628,7 +628,7 @@ impl SubCommand for Changes {
         if let Some(long_output) = self.long_output {
             command.arg(long_output.as_str());
         }
-        if let Some(max) = self.max {
+        if let Some(max) = self.limit {
             command.arg("-m").arg(max.to_string());
         }
         #[cfg(not(feature = "lt2017_2"))]
@@ -731,8 +731,8 @@ mod tests {
     }
 
     #[test]
-    fn max() {
-        let changes = Changes::new("p4", GlobalOpts::default()).max(5);
+    fn limit() {
+        let changes = Changes::new("p4", GlobalOpts::default()).limit(5);
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "-m", "5"]);
     }
@@ -811,7 +811,7 @@ mod tests {
             .restricted(true)
             .integrated(true)
             .long_output_full()
-            .max(5)
+            .limit(5)
             .status(Status::Submitted)
             .time(true)
             .user_name("edk");
