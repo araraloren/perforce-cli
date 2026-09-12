@@ -9,6 +9,7 @@ pub mod changes;
 pub mod describe;
 pub mod edit;
 pub mod filelog;
+pub mod print;
 pub mod r#where;
 
 pub use add::Add;
@@ -22,6 +23,7 @@ pub use changes::Changes;
 pub use describe::Describe;
 pub use edit::Edit;
 pub use filelog::FileLog;
+pub use print::Print;
 pub use r#where::Where;
 
 use std::{ffi::OsStr, process::Command};

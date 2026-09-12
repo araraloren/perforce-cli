@@ -11,6 +11,7 @@ use crate::cmd::Changes;
 use crate::cmd::Describe;
 use crate::cmd::Edit;
 use crate::cmd::FileLog;
+use crate::cmd::Print;
 use crate::cmd::Where;
 use crate::global::GlobalOpts;
 
@@ -138,6 +139,11 @@ impl P4Cli {
     /// Print detailed information about the revisions of files.
     pub fn filelog(&self) -> FileLog {
         FileLog::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Print the contents of depot file revisions.
+    pub fn print(&self) -> Print {
+        Print::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Show where a particular file is located, as determined by the client view.
