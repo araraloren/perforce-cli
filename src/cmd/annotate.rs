@@ -2,7 +2,7 @@ use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::{Child, Command, Output, Stdio};
 
-use crate::cmd::SubCommand;
+use crate::cmd::{ExclusiveOption, SubCommand, Unselected};
 use crate::global::GlobalOpts;
 
 /// Internal representation of the `-T` / `--tab=N` tab stop setting.
@@ -13,6 +13,30 @@ enum Tab {
     Default,
     /// `--tab=N`: align output to a tab stop of N.
     Custom(u32),
+}
+
+/// Variants of the `[-i | -I]` mutually exclusive option group of
+/// `p4 annotate`.
+pub mod follow {
+    /// Follow file history across branches (`-i`).
+    #[derive(Debug, Clone, Copy, Default)]
+    pub struct Branches;
+
+    /// Follow integrations into the file (`-I`).
+    #[derive(Debug, Clone, Copy, Default)]
+    pub struct Integrations;
+}
+
+impl ExclusiveOption for follow::Branches {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-i");
+    }
+}
+
+impl ExclusiveOption for follow::Integrations {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-I");
+    }
 }
 
 #[cfg_attr(
@@ -48,7 +72,7 @@ enum Tab {
     doc = "`p4 [g-opts] annotate [-a -c -i -I -q -t -T -u] [-d options] FileSpec[revSpec]`: print file lines along with their revisions."
 )]
 #[derive(Debug, Clone, Default)]
-pub struct Annotate {
+pub struct Annotate<F = Unselected> {
     bin: PathBuf,
 
     global_opts: GlobalOpts,
@@ -59,9 +83,7 @@ pub struct Annotate {
 
     diff_options: Option<String>,
 
-    follow_branches: bool,
-
-    follow_integrations: bool,
+    follow: F,
 
     quiet_mode: bool,
 
@@ -74,7 +96,7 @@ pub struct Annotate {
     tab: Option<Tab>,
 }
 
-impl Annotate {
+impl Annotate<Unselected> {
     /// Creates a new `p4 annotate` command.
     ///
     /// `bin` is the path to the Perforce command-line executable.
@@ -86,6 +108,77 @@ impl Annotate {
         }
     }
 
+    /// # Description
+    ///
+    /// -i
+    ///
+    /// Follow file history across branches. If a file was created by
+    /// branching,
+    #[cfg_attr(
+        feature = "lt2017_2",
+        doc = "Perforce includes revisions up to the branch point."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2017_2"),
+        doc = "the output includes revisions up to the branch point."
+    )]
+    /// The use of the -i option implies the -c option. The -i option cannot be
+    /// combined with -I.
+    pub fn follow_branches(self) -> Annotate<follow::Branches> {
+        Annotate {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            all_lines: self.all_lines,
+            changelist_number: self.changelist_number,
+            diff_options: self.diff_options,
+            follow: follow::Branches,
+            quiet_mode: self.quiet_mode,
+            force_binary: self.force_binary,
+            #[cfg(not(feature = "lt2015_2"))]
+            user_date: self.user_date,
+            #[cfg(not(feature = "lt2016_1"))]
+            tab: self.tab,
+        }
+    }
+
+    /// # Description
+    ///
+    /// -I
+    ///
+    /// Follow integrations into the file. If a line was introduced into the
+    /// file by a merge, the source of the merge is indicated as the changelist
+    /// that introduced the line.
+    #[cfg_attr(
+        feature = "lt2017_2",
+        doc = "If that source was itself the result of an integration, that",
+        doc = "source will be used instead, and so on. The use of the -I option",
+        doc = "implies the -c option. The -I option cannot be combined with -i."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2017_2"),
+        doc = "If that source was itself the result of an integration, that",
+        doc = "source will be used instead. The use of the -I option implies the",
+        doc = "-c option. The -I option cannot be combined with -i."
+    )]
+    pub fn follow_integrations(self) -> Annotate<follow::Integrations> {
+        Annotate {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            all_lines: self.all_lines,
+            changelist_number: self.changelist_number,
+            diff_options: self.diff_options,
+            follow: follow::Integrations,
+            quiet_mode: self.quiet_mode,
+            force_binary: self.force_binary,
+            #[cfg(not(feature = "lt2015_2"))]
+            user_date: self.user_date,
+            #[cfg(not(feature = "lt2016_1"))]
+            tab: self.tab,
+        }
+    }
+}
+
+impl<F: ExclusiveOption> Annotate<F> {
     /// Spawns `p4 annotate` for the given files as a child process.
     ///
     /// The child process inherits the standard input, output, and error
@@ -343,139 +436,6 @@ impl Annotate {
 
     /// # Description
     ///
-    /// -i
-    ///
-    /// Follow file history across branches. If a file was created by
-    /// branching,
-    #[cfg_attr(
-        feature = "lt2017_2",
-        doc = "Perforce includes revisions up to the branch point."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2017_2"),
-        doc = "the output includes revisions up to the branch point."
-    )]
-    /// The use of the -i option implies the -c option. The -i option cannot be
-    /// combined with -I.
-    pub fn get_follow_branches(&self) -> bool {
-        self.follow_branches
-    }
-
-    /// # Description
-    ///
-    /// -i
-    ///
-    /// Follow file history across branches. If a file was created by
-    /// branching,
-    #[cfg_attr(
-        feature = "lt2017_2",
-        doc = "Perforce includes revisions up to the branch point."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2017_2"),
-        doc = "the output includes revisions up to the branch point."
-    )]
-    /// The use of the -i option implies the -c option. The -i option cannot be
-    /// combined with -I.
-    pub fn set_follow_branches(&mut self, v: bool) -> &mut Self {
-        self.follow_branches = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -i
-    ///
-    /// Follow file history across branches. If a file was created by
-    /// branching,
-    #[cfg_attr(
-        feature = "lt2017_2",
-        doc = "Perforce includes revisions up to the branch point."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2017_2"),
-        doc = "the output includes revisions up to the branch point."
-    )]
-    /// The use of the -i option implies the -c option. The -i option cannot be
-    /// combined with -I.
-    pub fn follow_branches(mut self, v: bool) -> Self {
-        self.follow_branches = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -I
-    ///
-    /// Follow integrations into the file. If a line was introduced into the
-    /// file by a merge, the source of the merge is indicated as the changelist
-    /// that introduced the line.
-    #[cfg_attr(
-        feature = "lt2017_2",
-        doc = "If that source was itself the result of an integration, that",
-        doc = "source will be used instead, and so on. The use of the -I option",
-        doc = "implies the -c option. The -I option cannot be combined with -i."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2017_2"),
-        doc = "If that source was itself the result of an integration, that",
-        doc = "source will be used instead. The use of the -I option implies the",
-        doc = "-c option. The -I option cannot be combined with -i."
-    )]
-    pub fn get_follow_integrations(&self) -> bool {
-        self.follow_integrations
-    }
-
-    /// # Description
-    ///
-    /// -I
-    ///
-    /// Follow integrations into the file. If a line was introduced into the
-    /// file by a merge, the source of the merge is indicated as the changelist
-    /// that introduced the line.
-    #[cfg_attr(
-        feature = "lt2017_2",
-        doc = "If that source was itself the result of an integration, that",
-        doc = "source will be used instead, and so on. The use of the -I option",
-        doc = "implies the -c option. The -I option cannot be combined with -i."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2017_2"),
-        doc = "If that source was itself the result of an integration, that",
-        doc = "source will be used instead. The use of the -I option implies the",
-        doc = "-c option. The -I option cannot be combined with -i."
-    )]
-    pub fn set_follow_integrations(&mut self, v: bool) -> &mut Self {
-        self.follow_integrations = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -I
-    ///
-    /// Follow integrations into the file. If a line was introduced into the
-    /// file by a merge, the source of the merge is indicated as the changelist
-    /// that introduced the line.
-    #[cfg_attr(
-        feature = "lt2017_2",
-        doc = "If that source was itself the result of an integration, that",
-        doc = "source will be used instead, and so on. The use of the -I option",
-        doc = "implies the -c option. The -I option cannot be combined with -i."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2017_2"),
-        doc = "If that source was itself the result of an integration, that",
-        doc = "source will be used instead. The use of the -I option implies the",
-        doc = "-c option. The -I option cannot be combined with -i."
-    )]
-    pub fn follow_integrations(mut self, v: bool) -> Self {
-        self.follow_integrations = v;
-        self
-    }
-
-    /// # Description
-    ///
     /// -q
     ///
     #[cfg_attr(
@@ -654,7 +614,7 @@ impl Annotate {
     }
 }
 
-impl SubCommand for Annotate {
+impl<F: ExclusiveOption> SubCommand for Annotate<F> {
     fn name(&self) -> &str {
         "annotate"
     }
@@ -672,13 +632,7 @@ impl SubCommand for Annotate {
             command.arg(format!("-d{diff_options}"));
         }
 
-        if self.follow_branches {
-            command.arg("-i");
-        }
-
-        if self.follow_integrations {
-            command.arg("-I");
-        }
+        self.follow.inject_args(command);
 
         if self.quiet_mode {
             command.arg("-q");
@@ -736,16 +690,19 @@ mod tests {
             .set_all_lines(true)
             .set_changelist_number(true)
             .set_diff_options("Su2")
-            .set_follow_branches(true)
-            .set_follow_integrations(true)
             .set_quiet_mode(true)
             .set_force_binary(true);
         #[cfg(not(feature = "lt2015_2"))]
         annotate.set_user_date(true);
 
+        // `-i` and `-I` are mutually exclusive; select the branch-following
+        // variant here.
+        #[cfg_attr(feature = "lt2016_1", allow(unused_mut))]
+        let mut annotate = annotate.follow_branches();
+
         // `mut` is only needed when the tab block below is compiled in.
         #[cfg_attr(feature = "lt2016_1", allow(unused_mut))]
-        let mut expected = vec!["annotate", "-a", "-c", "-dSu2", "-i", "-I", "-q", "-t"];
+        let mut expected = vec!["annotate", "-a", "-c", "-dSu2", "-i", "-q", "-t"];
         #[cfg(not(feature = "lt2015_2"))]
         expected.push("-u");
         #[cfg(not(feature = "lt2016_1"))]
