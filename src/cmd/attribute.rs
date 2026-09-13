@@ -1,19 +1,108 @@
 use std::ffi::OsStr;
 use std::io::Write;
+#[cfg(not(feature = "lt2024_2"))]
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::{Child, Command, Output, Stdio};
 
-use crate::cmd::SubCommand;
+use crate::cmd::{ExclusiveOption, SubCommand, Unselected};
 use crate::global::GlobalOpts;
 
-/// Internal representation of the `-T0` / `-T1` trait storage location.
+/// Default value source of `p4 attribute`: set or clear attributes with
+/// `-n name [-v value]` pairs.
+///
+/// Each entry is an attribute name together with the value to set, or `None`
+/// to clear the attribute by omitting `-v`.
+#[derive(Debug, Clone, Default)]
+pub struct Standard {
+    values: Option<Vec<(String, Option<String>)>>,
+
+    hex: bool,
+}
+
+impl ExclusiveOption for Standard {
+    fn inject_args(&self, command: &mut Command) {
+        if self.hex {
+            command.arg("-e");
+        }
+
+        if let Some(pairs) = &self.values {
+            for (name, value) in pairs {
+                command.arg("-n").arg(name);
+
+                if let Some(value) = value {
+                    command.arg("-v").arg(value);
+                }
+            }
+        }
+    }
+}
+
+/// Read the attribute value from standard input (`-i`).
+///
+/// Entered with [`Attribute::read_from_stdin`]; only one file argument is
+/// allowed in this state.
+#[derive(Debug, Clone, Default)]
+pub struct FromStdin {
+    hex: bool,
+
+    name: String,
+}
+
+impl ExclusiveOption for FromStdin {
+    fn inject_args(&self, command: &mut Command) {
+        if self.hex {
+            command.arg("-e");
+        }
+
+        command.arg("-i").arg("-n").arg(&self.name);
+    }
+}
+
+/// Read the attribute value from a file (`-I filename`).
+///
+/// Entered with [`Attribute::read_from_file`]; `-e` is not available and only
+/// one file argument is allowed in this state.
+#[cfg(not(feature = "lt2024_2"))]
+#[derive(Debug, Clone, Default)]
+pub struct FromFile {
+    name: String,
+
+    file: PathBuf,
+}
+
+#[cfg(not(feature = "lt2024_2"))]
+impl ExclusiveOption for FromFile {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-I").arg(&self.file).arg("-n").arg(&self.name);
+    }
+}
+
+/// Trait storage location of the `-T0` / `-T1` option group of
+/// `p4 attribute`.
 #[cfg(not(feature = "lt2023_2"))]
-#[derive(Debug, Clone, Copy)]
-enum TraitStorage {
+pub mod storage {
     /// `-T0`: store the attribute value in the `db.traits` table.
-    Table,
+    #[derive(Debug, Clone, Copy, Default)]
+    pub struct DatabaseTraits;
+
     /// `-T1`: store the attribute value in the `trait` depot.
-    Depot,
+    #[derive(Debug, Clone, Copy, Default)]
+    pub struct TraitDepot;
+}
+
+#[cfg(not(feature = "lt2023_2"))]
+impl ExclusiveOption for storage::DatabaseTraits {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-T0");
+    }
+}
+
+#[cfg(not(feature = "lt2023_2"))]
+impl ExclusiveOption for storage::TraitDepot {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-T1");
+    }
 }
 
 #[cfg_attr(
@@ -28,42 +117,36 @@ enum TraitStorage {
     not(feature = "lt2024_2"),
     doc = "`p4 [g-opts] attribute [-e -f -p] -n name [-v value [-T0 | -T1]] files ...`: set per-revision attributes on revisions.\n\n`p4 [g-opts] attribute [-e -f -p [-T0 | -T1]] -i -n name file`\n\n`p4 attribute [-f -p [-T0 | -T1]] -I filename -n name file`"
 )]
+///
+/// The `S` type parameter tracks the value source: [`Standard`] for the
+/// default `-n`/`-v` set-or-clear form, [`FromStdin`] for the `-i` form,
+#[cfg_attr(
+    not(feature = "lt2024_2"),
+    doc = "[`FromFile`] for the `-I filename` form, and"
+)]
+/// and the `T` type parameter tracks the `-T0`/`-T1` trait storage location.
 #[derive(Debug, Clone, Default)]
-pub struct Attribute {
+pub struct Attribute<S = Standard, T = Unselected> {
     bin: PathBuf,
 
     global_opts: GlobalOpts,
 
-    hex: bool,
+    source: S,
 
-    submitted_files: bool,
+    storage: T,
 
-    stdin: bool,
-
-    #[cfg(not(feature = "lt2024_2"))]
-    read_from_file: Option<PathBuf>,
-
-    name: Option<String>,
+    on_submitted_files: bool,
 
     propagating: bool,
-
-    value: Option<String>,
-
-    #[cfg(not(feature = "lt2023_2"))]
-    trait_storage: Option<TraitStorage>,
 }
 
-impl SubCommand for Attribute {
+impl<S: ExclusiveOption, T: ExclusiveOption> SubCommand for Attribute<S, T> {
     fn name(&self) -> &str {
         "attribute"
     }
 
     fn inject_local_args(&self, command: &mut Command) {
-        if self.hex {
-            command.arg("-e");
-        }
-
-        if self.submitted_files {
+        if self.on_submitted_files {
             command.arg("-f");
         }
 
@@ -71,33 +154,9 @@ impl SubCommand for Attribute {
             command.arg("-p");
         }
 
-        #[cfg(not(feature = "lt2023_2"))]
-        match self.trait_storage {
-            Some(TraitStorage::Table) => {
-                command.arg("-T0");
-            }
-            Some(TraitStorage::Depot) => {
-                command.arg("-T1");
-            }
-            None => {}
-        }
+        self.storage.inject_args(command);
 
-        if self.stdin {
-            command.arg("-i");
-        }
-
-        #[cfg(not(feature = "lt2024_2"))]
-        if let Some(ref file) = self.read_from_file {
-            command.arg("-I").arg(file);
-        }
-
-        if let Some(ref name) = self.name {
-            command.arg("-n").arg(name);
-        }
-
-        if let Some(ref value) = self.value {
-            command.arg("-v").arg(value);
-        }
+        self.source.inject_args(command);
     }
 
     fn global_opts(&self) -> Option<&GlobalOpts> {
@@ -105,7 +164,7 @@ impl SubCommand for Attribute {
     }
 }
 
-impl Attribute {
+impl Attribute<Standard, Unselected> {
     /// Creates a new `p4 attribute` command.
     ///
     /// `bin` is the path to the Perforce command-line executable.
@@ -113,21 +172,21 @@ impl Attribute {
         Self {
             bin: bin.into(),
             global_opts,
-            ..Default::default()
+            on_submitted_files: false,
+            propagating: false,
+            source: Standard::default(),
+            storage: Unselected,
         }
     }
+}
 
+impl<T: ExclusiveOption> Attribute<Standard, T> {
     /// Spawns `p4 attribute` for the given files as a child process.
     ///
     /// The child process inherits the standard input, output, and error
     /// streams of the current process, and runs asynchronously; use the
     /// returned [`Child`] handle to wait for it or interact with it.
-    ///
-    /// This is the general-purpose entry point. For the `-i` option where
-    /// the attribute value is read from standard input, use
-    /// [`Self::spawn_stdin`] so that the value can be written to the
-    /// child's stdin programmatically.
-    pub fn spawn<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Child, std::io::Error> {
+    pub fn spawn<F: AsRef<OsStr>>(&self, files: &[F]) -> Result<Child, std::io::Error> {
         self.setup_command(&self.bin).args(files).spawn()
     }
 
@@ -136,10 +195,7 @@ impl Attribute {
     ///
     /// Unlike [`Self::spawn`], this method blocks until the command exits and
     /// collects the standard output and error into the returned [`Output`].
-    ///
-    /// Standard input is set to null, so this method is not suitable for the
-    /// `-i` option. Use [`Self::output_with_stdin_value`] instead.
-    pub fn output<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Output, std::io::Error> {
+    pub fn output<F: AsRef<OsStr>>(&self, files: &[F]) -> Result<Output, std::io::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())
@@ -147,17 +203,193 @@ impl Attribute {
             .output()
     }
 
-    /// Spawns `p4 attribute` with the given standard input configuration,
-    /// allowing the caller to control how the child's stdin is handled.
+    /// # Description
     ///
-    /// This is intended for use with the `-i` option, which reads the
-    /// attribute value from standard input. Only one file argument is
-    /// allowed when using `-i`.
+    /// -n name -v value
+    ///
+    /// Sets the attribute `name` to `value` on the given files.
+    #[cfg_attr(not(feature = "lt2024_2"), doc = "The supplied value must be text.")]
+    pub fn set(&mut self, name: impl Into<String>, value: impl Into<String>) -> &mut Self {
+        self.source
+            .values
+            .get_or_insert_with(Vec::new)
+            .push((name.into(), Some(value.into())));
+        self
+    }
+
+    /// # Description
+    ///
+    /// -n name
+    ///
+    /// Clears the attribute `name` on the given files by omitting the `-v`
+    /// option.
+    pub fn clear(&mut self, name: impl Into<String>) -> &mut Self {
+        self.source
+            .values
+            .get_or_insert_with(Vec::new)
+            .push((name.into(), None));
+        self
+    }
+
+    /// # Description
+    ///
+    /// -e
+    ///
+    /// Indicates that the value is specified in hex.
+    pub fn get_hex(&self) -> bool {
+        self.source.hex
+    }
+
+    /// # Description
+    ///
+    /// -e
+    ///
+    /// Indicates that the value is specified in hex.
+    pub fn set_hex(&mut self, v: bool) -> &mut Self {
+        self.source.hex = v;
+        self
+    }
+
+    /// # Description
+    ///
+    /// -e
+    ///
+    /// Indicates that the value is specified in hex.
+    pub fn hex(mut self, v: bool) -> Self {
+        self.source.hex = v;
+        self
+    }
+
+    /// # Description
+    ///
+    /// -i
+    ///
+    #[cfg_attr(
+        feature = "lt2024_2",
+        doc = "Read an attribute value from the standard input. Only one file argument is allowed when using this option."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_2"),
+        doc = "Read an attribute value from the standard input. Only one file argument is allowed when using this option. This option supports both textual and binary content."
+    )]
+    ///
+    /// Transitions this command to the [`FromStdin`] state; any `-n`/`-v`
+    /// pairs set with [`Self::set`] or [`Self::clear`] are discarded, while
+    /// `-e` is preserved.
+    pub fn read_from_stdin(self, name: String) -> Attribute<FromStdin, T> {
+        Attribute {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            on_submitted_files: self.on_submitted_files,
+            propagating: self.propagating,
+            source: FromStdin {
+                hex: self.source.hex,
+                name,
+            },
+            storage: self.storage,
+        }
+    }
+
+    /// # Description
+    ///
+    /// -I filename
+    ///
+    /// Read the attribute value from a file. The file can have textual or
+    /// binary content. Use this when the attribute data exceeds 250
+    /// megabytes, which might cause the command to fail with the `Rpc buffer
+    /// too big` error. The following are not allowed with this option:
+    ///
+    /// - Using the `-e` option to specify the value as hex.
+    /// - More than one file argument.
+    /// - Setting more than one trait value.
+    ///
+    /// To display attributes set with this option, use the `p4 print -T`
+    /// command instead of the `p4 fstat -Oa` command because `p4 print -T`
+    /// can handle larger non-encoded binary data.
+    ///
+    /// Transitions this command to the [`FromFile`] state; any `-n`/`-v`
+    /// pairs set with [`Self::set`] or [`Self::clear`], as well as `-e`, are
+    /// discarded.
+    #[cfg(not(feature = "lt2024_2"))]
+    pub fn read_from_file(self, name: String, file: PathBuf) -> Attribute<FromFile, T> {
+        Attribute {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            on_submitted_files: self.on_submitted_files,
+            propagating: self.propagating,
+            source: FromFile { name, file },
+            storage: self.storage,
+        }
+    }
+}
+
+impl<T: ExclusiveOption> Attribute<FromStdin, T> {
+    /// # Description
+    ///
+    /// -e
+    ///
+    /// Indicates that the value is specified in hex.
+    pub fn get_hex(&self) -> bool {
+        self.source.hex
+    }
+
+    /// # Description
+    ///
+    /// -e
+    ///
+    /// Indicates that the value is specified in hex.
+    pub fn set_hex(&mut self, v: bool) -> &mut Self {
+        self.source.hex = v;
+        self
+    }
+
+    /// # Description
+    ///
+    /// -e
+    ///
+    /// Indicates that the value is specified in hex.
+    pub fn hex(mut self, v: bool) -> Self {
+        self.source.hex = v;
+        self
+    }
+
+    /// # Description
+    ///
+    /// -n name
+    ///
+    /// The name of the attribute read from standard input.
+    pub fn get_name(&self) -> &str {
+        &self.source.name
+    }
+
+    /// # Description
+    ///
+    /// -n name
+    ///
+    /// The name of the attribute read from standard input.
+    pub fn set_name(&mut self, v: impl Into<String>) -> &mut Self {
+        self.source.name = v.into();
+        self
+    }
+
+    /// # Description
+    ///
+    /// -n name
+    ///
+    /// The name of the attribute read from standard input.
+    pub fn name(mut self, v: impl Into<String>) -> Self {
+        self.source.name = v.into();
+        self
+    }
+
+    /// Spawns `p4 attribute -i` for a single file with the given standard
+    /// input configuration.
     ///
     /// Pass `Stdio::piped()` to obtain a writable `child.stdin` handle and
     /// write the attribute value yourself, then drop it before waiting on
-    /// the child.
-    pub fn spawn_stdin<S, I>(&self, stdin: I, file: S) -> Result<Child, std::io::Error>
+    /// the child. Only one file argument is allowed in the [`FromStdin`]
+    /// state.
+    pub fn spawn<S, I>(&self, stdin: I, file: S) -> Result<Child, std::io::Error>
     where
         S: AsRef<OsStr>,
         I: Into<Stdio>,
@@ -165,53 +397,15 @@ impl Attribute {
         self.setup_command(&self.bin).arg(file).stdin(stdin).spawn()
     }
 
-    /// Spawns `p4 attribute` for a single file.
+    /// Runs `p4 attribute -i` for a single file, writing `value` to the
+    /// child's standard input, and captures the command's output.
     ///
-    /// This is a convenience entry point for command forms that accept only
-    /// one file argument, such as:
-    ///
-    /// `p4 attribute [-f -p [-T0 | -T1]] -I filename -n name file`
-    ///
-    /// where the attribute value is read from `filename` via the `-I` option
-    /// and applied to the single `file`.
-    pub fn spawn_file<S: AsRef<OsStr>>(&self, file: S) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).arg(file).spawn()
-    }
-
-    /// Runs `p4 attribute` for a single file to completion and captures its
-    /// output.
-    ///
-    /// This is the single-file counterpart to [`Self::spawn_file`], intended
-    /// for command forms that accept only one file argument, such as:
-    ///
-    /// `p4 attribute [-f -p [-T0 | -T1]] -I filename -n name file`
-    pub fn output_file<S: AsRef<OsStr>>(&self, file: S) -> Result<Output, std::io::Error> {
-        self.setup_command(&self.bin)
-            .arg(file)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-    }
-
-    /// Runs `p4 attribute` with the given value written to standard input,
-    /// capturing the command's output.
-    ///
-    /// This is a convenience wrapper around the `-i` option: it sets the
-    /// `-i` flag, pipes the supplied `value` bytes to the child's standard
-    /// input, waits for the command to finish, and returns the captured
-    /// output.
-    ///
-    /// Only one file argument is allowed with the `-i` option.
-    pub fn output_with_stdin_value<S, V>(
-        mut self,
-        file: S,
-        value: V,
-    ) -> Result<Output, std::io::Error>
+    /// Only one file argument is allowed in the [`FromStdin`] state.
+    pub fn output<S, V>(&self, file: S, value: V) -> Result<Output, std::io::Error>
     where
-        V: AsRef<[u8]>,
         S: AsRef<OsStr>,
+        V: AsRef<[u8]>,
     {
-        self.stdin = true;
         let mut child = self
             .setup_command(&self.bin)
             .arg(file)
@@ -227,7 +421,69 @@ impl Attribute {
 
         child.wait_with_output()
     }
+}
 
+#[cfg(not(feature = "lt2024_2"))]
+impl<T: ExclusiveOption> Attribute<FromFile, T> {
+    /// # Description
+    ///
+    /// -n name
+    ///
+    /// The name of the attribute read from the file.
+    pub fn get_name(&self) -> &str {
+        &self.source.name
+    }
+
+    /// # Description
+    ///
+    /// -n name
+    ///
+    /// The name of the attribute read from the file.
+    pub fn set_name(&mut self, v: impl Into<String>) -> &mut Self {
+        self.source.name = v.into();
+        self
+    }
+
+    /// # Description
+    ///
+    /// -n name
+    ///
+    /// The name of the attribute read from the file.
+    pub fn name(mut self, v: impl Into<String>) -> Self {
+        self.source.name = v.into();
+        self
+    }
+
+    /// # Description
+    ///
+    /// -I filename
+    ///
+    /// The file the attribute value is read from.
+    pub fn get_file(&self) -> &Path {
+        &self.source.file
+    }
+
+    /// Spawns `p4 attribute -I` for a single file.
+    ///
+    /// Only one file argument is allowed in the [`FromFile`] state.
+    pub fn spawn<S: AsRef<OsStr>>(&self, file: S) -> Result<Child, std::io::Error> {
+        self.setup_command(&self.bin).arg(file).spawn()
+    }
+
+    /// Runs `p4 attribute -I` for a single file to completion and captures
+    /// its output.
+    ///
+    /// Only one file argument is allowed in the [`FromFile`] state.
+    pub fn output<S: AsRef<OsStr>>(&self, file: S) -> Result<Output, std::io::Error> {
+        self.setup_command(&self.bin)
+            .arg(file)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+    }
+}
+
+impl<S: ExclusiveOption, T: ExclusiveOption> Attribute<S, T> {
     /// # Description
     ///
     /// g-opts
@@ -307,30 +563,24 @@ impl Attribute {
 
     /// # Description
     ///
-    /// -e
+    /// -f
     ///
-    /// Indicates that the value is specified in hex.
-    pub fn get_hex(&self) -> bool {
-        self.hex
+    /// Set the attribute on submitted files. If a propagating trait is set
+    /// on a submitted file, a revision specifier cannot be used, and the
+    /// file must not be currently open in any workspace.
+    pub fn get_on_submitted_files(&self) -> bool {
+        self.on_submitted_files
     }
 
     /// # Description
     ///
-    /// -e
+    /// -f
     ///
-    /// Indicates that the value is specified in hex.
-    pub fn set_hex(&mut self, v: bool) -> &mut Self {
-        self.hex = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -e
-    ///
-    /// Indicates that the value is specified in hex.
-    pub fn hex(mut self, v: bool) -> Self {
-        self.hex = v;
+    /// Set the attribute on submitted files. If a propagating trait is set
+    /// on a submitted file, a revision specifier cannot be used, and the
+    /// file must not be currently open in any workspace.
+    pub fn set_on_submitted_files(&mut self, v: bool) -> &mut Self {
+        self.on_submitted_files = v;
         self
     }
 
@@ -341,175 +591,8 @@ impl Attribute {
     /// Set the attribute on submitted files. If a propagating trait is set
     /// on a submitted file, a revision specifier cannot be used, and the
     /// file must not be currently open in any workspace.
-    pub fn get_submitted_files(&self) -> bool {
-        self.submitted_files
-    }
-
-    /// # Description
-    ///
-    /// -f
-    ///
-    /// Set the attribute on submitted files. If a propagating trait is set
-    /// on a submitted file, a revision specifier cannot be used, and the
-    /// file must not be currently open in any workspace.
-    pub fn set_submitted_files(&mut self, v: bool) -> &mut Self {
-        self.submitted_files = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -f
-    ///
-    /// Set the attribute on submitted files. If a propagating trait is set
-    /// on a submitted file, a revision specifier cannot be used, and the
-    /// file must not be currently open in any workspace.
-    pub fn submitted_files(mut self, v: bool) -> Self {
-        self.submitted_files = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -i
-    ///
-    #[cfg_attr(
-        feature = "lt2024_2",
-        doc = "Read an attribute value from the standard input. Only one file argument is allowed when using this option."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2024_2"),
-        doc = "Read an attribute value from the standard input. Only one file argument is allowed when using this option. This option supports both textual and binary content."
-    )]
-    pub fn get_stdin(&self) -> bool {
-        self.stdin
-    }
-
-    /// # Description
-    ///
-    /// -i
-    ///
-    #[cfg_attr(
-        feature = "lt2024_2",
-        doc = "Read an attribute value from the standard input. Only one file argument is allowed when using this option."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2024_2"),
-        doc = "Read an attribute value from the standard input. Only one file argument is allowed when using this option. This option supports both textual and binary content."
-    )]
-    pub fn set_stdin(&mut self, v: bool) -> &mut Self {
-        self.stdin = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -i
-    ///
-    #[cfg_attr(
-        feature = "lt2024_2",
-        doc = "Read an attribute value from the standard input. Only one file argument is allowed when using this option."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2024_2"),
-        doc = "Read an attribute value from the standard input. Only one file argument is allowed when using this option. This option supports both textual and binary content."
-    )]
-    pub fn stdin(mut self, v: bool) -> Self {
-        self.stdin = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -I filename
-    ///
-    /// Read the attribute value from a file. The file can have textual or
-    /// binary content. Use this when the attribute data exceeds 250
-    /// megabytes, which might cause the command to fail with the `Rpc buffer
-    /// too big` error. The following are not allowed with this option:
-    ///
-    /// - Using the `-e` option to specify the value as hex.
-    /// - More than one file argument.
-    /// - Setting more than one trait value.
-    ///
-    /// To display attributes set with this option, use the `p4 print -T`
-    /// command instead of the `p4 fstat -Oa` command because `p4 print -T`
-    /// can handle larger non-encoded binary data.
-    #[cfg(not(feature = "lt2024_2"))]
-    pub fn get_read_from_file(&self) -> Option<&PathBuf> {
-        self.read_from_file.as_ref()
-    }
-
-    /// # Description
-    ///
-    /// -I filename
-    ///
-    /// Read the attribute value from a file. The file can have textual or
-    /// binary content. Use this when the attribute data exceeds 250
-    /// megabytes, which might cause the command to fail with the `Rpc buffer
-    /// too big` error. The following are not allowed with this option:
-    ///
-    /// - Using the `-e` option to specify the value as hex.
-    /// - More than one file argument.
-    /// - Setting more than one trait value.
-    ///
-    /// To display attributes set with this option, use the `p4 print -T`
-    /// command instead of the `p4 fstat -Oa` command because `p4 print -T`
-    /// can handle larger non-encoded binary data.
-    #[cfg(not(feature = "lt2024_2"))]
-    pub fn set_read_from_file(&mut self, v: impl Into<PathBuf>) -> &mut Self {
-        self.read_from_file = Some(v.into());
-        self
-    }
-
-    /// # Description
-    ///
-    /// -I filename
-    ///
-    /// Read the attribute value from a file. The file can have textual or
-    /// binary content. Use this when the attribute data exceeds 250
-    /// megabytes, which might cause the command to fail with the `Rpc buffer
-    /// too big` error. The following are not allowed with this option:
-    ///
-    /// - Using the `-e` option to specify the value as hex.
-    /// - More than one file argument.
-    /// - Setting more than one trait value.
-    ///
-    /// To display attributes set with this option, use the `p4 print -T`
-    /// command instead of the `p4 fstat -Oa` command because `p4 print -T`
-    /// can handle larger non-encoded binary data.
-    #[cfg(not(feature = "lt2024_2"))]
-    pub fn read_from_file(mut self, v: impl Into<PathBuf>) -> Self {
-        self.read_from_file = Some(v.into());
-        self
-    }
-
-    /// # Description
-    ///
-    /// -n name
-    ///
-    /// The name of the attribute to set.
-    pub fn get_name(&self) -> Option<&String> {
-        self.name.as_ref()
-    }
-
-    /// # Description
-    ///
-    /// -n name
-    ///
-    /// The name of the attribute to set.
-    pub fn set_name(&mut self, v: impl Into<String>) -> &mut Self {
-        self.name = Some(v.into());
-        self
-    }
-
-    /// # Description
-    ///
-    /// -n name
-    ///
-    /// The name of the attribute to set.
-    pub fn name(mut self, v: impl Into<String>) -> Self {
-        self.name = Some(v.into());
+    pub fn on_submitted_files(mut self, v: bool) -> Self {
+        self.on_submitted_files = v;
         self
     }
 
@@ -562,90 +645,25 @@ impl Attribute {
         self.propagating = v;
         self
     }
+}
 
-    /// # Description
-    ///
-    /// -v value
-    ///
-    #[cfg_attr(
-        feature = "lt2024_2",
-        doc = "The value of the attribute to set. To clear an attribute, omit the `-v` option."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2024_2"),
-        doc = "The value of the attribute to set. To clear an attribute, omit the `-v` option. The supplied value must be text."
-    )]
-    pub fn get_value(&self) -> Option<&String> {
-        self.value.as_ref()
-    }
-
-    /// # Description
-    ///
-    /// -v value
-    ///
-    #[cfg_attr(
-        feature = "lt2024_2",
-        doc = "The value of the attribute to set. To clear an attribute, omit the `-v` option."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2024_2"),
-        doc = "The value of the attribute to set. To clear an attribute, omit the `-v` option. The supplied value must be text."
-    )]
-    pub fn set_value(&mut self, v: impl Into<String>) -> &mut Self {
-        self.value = Some(v.into());
-        self
-    }
-
-    /// # Description
-    ///
-    /// -v value
-    ///
-    #[cfg_attr(
-        feature = "lt2024_2",
-        doc = "The value of the attribute to set. To clear an attribute, omit the `-v` option."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2024_2"),
-        doc = "The value of the attribute to set. To clear an attribute, omit the `-v` option. The supplied value must be text."
-    )]
-    pub fn value(mut self, v: impl Into<String>) -> Self {
-        self.value = Some(v.into());
-        self
-    }
-
+#[cfg(not(feature = "lt2023_2"))]
+impl<S: ExclusiveOption, T: ExclusiveOption> Attribute<S, T> {
     /// # Description
     ///
     /// -T0
     ///
     /// Causes the value to be stored in the `db.traits` table, which is the
     /// implicit default.
-    #[cfg(not(feature = "lt2023_2"))]
-    pub fn get_trait_storage_table(&self) -> bool {
-        matches!(self.trait_storage, Some(TraitStorage::Table))
-    }
-
-    /// # Description
-    ///
-    /// -T0
-    ///
-    /// Causes the value to be stored in the `db.traits` table, which is the
-    /// implicit default.
-    #[cfg(not(feature = "lt2023_2"))]
-    pub fn set_trait_storage_table(&mut self) -> &mut Self {
-        self.trait_storage = Some(TraitStorage::Table);
-        self
-    }
-
-    /// # Description
-    ///
-    /// -T0
-    ///
-    /// Causes the value to be stored in the `db.traits` table, which is the
-    /// implicit default.
-    #[cfg(not(feature = "lt2023_2"))]
-    pub fn trait_storage_table(mut self) -> Self {
-        self.trait_storage = Some(TraitStorage::Table);
-        self
+    pub fn store_in_database_traits(self) -> Attribute<S, storage::DatabaseTraits> {
+        Attribute {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            on_submitted_files: self.on_submitted_files,
+            propagating: self.propagating,
+            source: self.source,
+            storage: storage::DatabaseTraits,
+        }
     }
 
     /// # Description
@@ -657,39 +675,15 @@ impl Attribute {
     /// than the size specified by the `trait.storagedepot.min` configurable.
     /// However, if `trait.storagedepot.min` is unset or set to `0`, the
     /// attribute value is stored in the `db.traits` table.
-    #[cfg(not(feature = "lt2023_2"))]
-    pub fn get_trait_storage_depot(&self) -> bool {
-        matches!(self.trait_storage, Some(TraitStorage::Depot))
-    }
-
-    /// # Description
-    ///
-    /// -T1
-    ///
-    /// Causes the value to be stored in the `trait` depot instead of the
-    /// `db.traits` table, even if the size of the attribute value is less
-    /// than the size specified by the `trait.storagedepot.min` configurable.
-    /// However, if `trait.storagedepot.min` is unset or set to `0`, the
-    /// attribute value is stored in the `db.traits` table.
-    #[cfg(not(feature = "lt2023_2"))]
-    pub fn set_trait_storage_depot(&mut self) -> &mut Self {
-        self.trait_storage = Some(TraitStorage::Depot);
-        self
-    }
-
-    /// # Description
-    ///
-    /// -T1
-    ///
-    /// Causes the value to be stored in the `trait` depot instead of the
-    /// `db.traits` table, even if the size of the attribute value is less
-    /// than the size specified by the `trait.storagedepot.min` configurable.
-    /// However, if `trait.storagedepot.min` is unset or set to `0`, the
-    /// attribute value is stored in the `db.traits` table.
-    #[cfg(not(feature = "lt2023_2"))]
-    pub fn trait_storage_depot(mut self) -> Self {
-        self.trait_storage = Some(TraitStorage::Depot);
-        self
+    pub fn store_in_trait_depot(self) -> Attribute<S, storage::TraitDepot> {
+        Attribute {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            on_submitted_files: self.on_submitted_files,
+            propagating: self.propagating,
+            source: self.source,
+            storage: storage::TraitDepot,
+        }
     }
 }
 
@@ -698,6 +692,8 @@ mod tests {
     use super::*;
     use crate::cmd::args_of;
 
+    /// Dry-run checks of the assembled `p4 attribute` command line; no
+    /// process is spawned.
     #[test]
     fn without_options() {
         let attr = Attribute::new("p4", GlobalOpts::new());
@@ -707,9 +703,8 @@ mod tests {
 
     #[test]
     fn set_attribute_with_value() {
-        let attr = Attribute::new("p4", GlobalOpts::new())
-            .name("status")
-            .value("approved");
+        let mut attr = Attribute::new("p4", GlobalOpts::new());
+        attr.set("status", "approved");
 
         assert_eq!(
             args_of(&attr.setup_command("p4")),
@@ -719,7 +714,8 @@ mod tests {
 
     #[test]
     fn clear_attribute_omits_value() {
-        let attr = Attribute::new("p4", GlobalOpts::new()).name("status");
+        let mut attr = Attribute::new("p4", GlobalOpts::new());
+        attr.clear("status");
 
         assert_eq!(
             args_of(&attr.setup_command("p4")),
@@ -728,35 +724,45 @@ mod tests {
     }
 
     #[test]
-    fn setting_name_or_value_replaces_previous() {
-        let attr = Attribute::new("p4", GlobalOpts::new())
-            .name("status")
-            .name("color")
-            .value("approved")
-            .value("red");
-
-        assert_eq!(
-            args_of(&attr.setup_command("p4")),
-            ["attribute", "-n", "color", "-v", "red"]
-        );
-    }
-
-    #[test]
-    fn hex_submitted_propagating() {
-        let attr = Attribute::new("p4", GlobalOpts::new())
-            .hex(true)
-            .submitted_files(true)
-            .propagating(true)
-            .name("thumb")
-            .value("deadbeef");
+    fn multiple_set_and_clear_pairs_keep_order() {
+        let mut attr = Attribute::new("p4", GlobalOpts::new());
+        attr.set("color", "red")
+            .clear("status")
+            .set("owner", "alice");
 
         assert_eq!(
             args_of(&attr.setup_command("p4")),
             [
                 "attribute",
-                "-e",
+                "-n",
+                "color",
+                "-v",
+                "red",
+                "-n",
+                "status",
+                "-n",
+                "owner",
+                "-v",
+                "alice"
+            ]
+        );
+    }
+
+    #[test]
+    fn hex_submitted_propagating() {
+        let mut attr = Attribute::new("p4", GlobalOpts::new());
+        attr.set_hex(true)
+            .set_on_submitted_files(true)
+            .set_propagating(true)
+            .set("thumb", "deadbeef");
+
+        assert_eq!(
+            args_of(&attr.setup_command("p4")),
+            [
+                "attribute",
                 "-f",
                 "-p",
+                "-e",
                 "-n",
                 "thumb",
                 "-v",
@@ -766,24 +772,55 @@ mod tests {
     }
 
     #[test]
-    fn stdin_flag() {
-        let attr = Attribute::new("p4", GlobalOpts::new())
-            .stdin(true)
-            .name("thumb");
+    fn read_from_stdin_state() {
+        let attr = Attribute::new("p4", GlobalOpts::new()).read_from_stdin("thumb".to_string());
 
+        assert_eq!(attr.get_name(), "thumb");
         assert_eq!(
             args_of(&attr.setup_command("p4")),
             ["attribute", "-i", "-n", "thumb"]
         );
     }
 
+    #[test]
+    fn stdin_name_can_be_replaced() {
+        let mut attr = Attribute::new("p4", GlobalOpts::new()).read_from_stdin("old".to_string());
+        attr.set_name("thumb");
+
+        assert_eq!(attr.get_name(), "thumb");
+
+        let attr = attr.name("icon");
+        assert_eq!(attr.get_name(), "icon");
+        assert_eq!(
+            args_of(&attr.setup_command("p4")),
+            ["attribute", "-i", "-n", "icon"]
+        );
+    }
+
+    #[test]
+    fn stdin_preserves_flags_and_hex() {
+        let mut attr = Attribute::new("p4", GlobalOpts::new());
+        attr.set_hex(true)
+            .set_on_submitted_files(true)
+            .set_propagating(true)
+            .set("discarded", "value");
+
+        let attr = attr.read_from_stdin("thumb".to_string());
+
+        assert!(attr.get_hex());
+        assert_eq!(
+            args_of(&attr.setup_command("p4")),
+            ["attribute", "-f", "-p", "-e", "-i", "-n", "thumb"]
+        );
+    }
+
     #[cfg(not(feature = "lt2023_2"))]
     #[test]
-    fn trait_storage_table() {
-        let attr = Attribute::new("p4", GlobalOpts::new())
-            .name("thumb")
-            .value("data")
-            .trait_storage_table();
+    fn store_in_database_traits() {
+        let mut attr = Attribute::new("p4", GlobalOpts::new());
+        attr.set("thumb", "data");
+
+        let attr = attr.store_in_database_traits();
 
         assert_eq!(
             args_of(&attr.setup_command("p4")),
@@ -793,11 +830,11 @@ mod tests {
 
     #[cfg(not(feature = "lt2023_2"))]
     #[test]
-    fn trait_storage_depot() {
-        let attr = Attribute::new("p4", GlobalOpts::new())
-            .name("thumb")
-            .value("data")
-            .trait_storage_depot();
+    fn store_in_trait_depot() {
+        let mut attr = Attribute::new("p4", GlobalOpts::new());
+        attr.set("thumb", "data");
+
+        let attr = attr.store_in_trait_depot();
 
         assert_eq!(
             args_of(&attr.setup_command("p4")),
@@ -805,13 +842,27 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "lt2023_2"))]
+    #[test]
+    fn stdin_with_trait_depot() {
+        let attr = Attribute::new("p4", GlobalOpts::new())
+            .read_from_stdin("thumb".to_string())
+            .store_in_trait_depot();
+
+        assert_eq!(
+            args_of(&attr.setup_command("p4")),
+            ["attribute", "-T1", "-i", "-n", "thumb"]
+        );
+    }
+
     #[cfg(not(feature = "lt2024_2"))]
     #[test]
-    fn read_from_file() {
+    fn read_from_file_state() {
         let attr = Attribute::new("p4", GlobalOpts::new())
-            .name("thumb")
-            .read_from_file("/tmp/thumb.bin");
+            .read_from_file("thumb".to_string(), PathBuf::from("/tmp/thumb.bin"));
 
+        assert_eq!(attr.get_name(), "thumb");
+        assert_eq!(attr.get_file(), Path::new("/tmp/thumb.bin"));
         assert_eq!(
             args_of(&attr.setup_command("p4")),
             ["attribute", "-I", "/tmp/thumb.bin", "-n", "thumb"]
@@ -821,19 +872,17 @@ mod tests {
     #[cfg(not(feature = "lt2024_2"))]
     #[test]
     fn all_modern_options() {
-        let attr = Attribute::new("p4", GlobalOpts::new())
-            .hex(true)
-            .submitted_files(true)
-            .propagating(true)
-            .trait_storage_depot()
-            .read_from_file("/tmp/data.bin")
-            .name("thumb");
+        let mut attr = Attribute::new("p4", GlobalOpts::new());
+        attr.set_on_submitted_files(true).set_propagating(true);
+
+        let attr = attr
+            .store_in_trait_depot()
+            .read_from_file("thumb".to_string(), PathBuf::from("/tmp/data.bin"));
 
         assert_eq!(
             args_of(&attr.setup_command("p4")),
             [
                 "attribute",
-                "-e",
                 "-f",
                 "-p",
                 "-T1",
@@ -848,9 +897,8 @@ mod tests {
     #[test]
     fn set_style_with_global_opts() {
         let mut attr = Attribute::new("p4", GlobalOpts::new().port("localhost:1666"));
-        attr.set_name("status").set_value("approved");
+        attr.set("status", "approved");
 
-        assert_eq!(attr.get_name().unwrap(), &"status".to_string());
         assert_eq!(
             args_of(&attr.setup_command("p4")),
             [
