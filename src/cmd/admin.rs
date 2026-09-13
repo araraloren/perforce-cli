@@ -2,7 +2,7 @@ use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::{Child, Command, Output, Stdio};
 
-use crate::cmd::SubCommand;
+use crate::cmd::{ExclusiveOption, SubCommand, Unselected};
 use crate::global::GlobalOpts;
 
 /// Entry point for the `p4 admin` subcommands.
@@ -53,7 +53,7 @@ impl AdminEntry {
     /// Equivalent to logging in to the server machine and running
     /// `p4d -jc [prefix]`: a checkpoint is taken and the journal is copied to
     /// a numbered file.
-    pub fn checkpoint(self) -> Admin<CheckPoint> {
+    pub fn checkpoint(self) -> Admin<CheckPoint<Unselected>> {
         Admin::new(self.bin, self.global_opts, CheckPoint::default())
     }
 
@@ -87,7 +87,7 @@ impl AdminEntry {
     /// `client`, `depot`, `branch`, `label`, `typemap`, `group`, `user`, and
     /// `job` forms) into the spec depot. Only those forms that have not yet
     /// been archived are created. The spec depot must exist first.
-    pub fn updatespecdepot(self) -> Admin<UpdateSpecDepot> {
+    pub fn updatespecdepot(self) -> Admin<UpdateSpecDepot<Unselected>> {
         Admin::new(self.bin, self.global_opts, UpdateSpecDepot::default())
     }
 
@@ -95,7 +95,7 @@ impl AdminEntry {
     ///
     /// Forces specified users with existing passwords to change their
     /// passwords before they can run another command.
-    pub fn resetpassword(self) -> Admin<ResetPassword> {
+    pub fn resetpassword(self) -> Admin<ResetPassword<Unselected>> {
         Admin::new(self.bin, self.global_opts, ResetPassword::default())
     }
 
@@ -166,7 +166,7 @@ impl AdminEntry {
     /// configurables controls that behavior. This command performs the
     /// reconciliation manually.
     #[cfg(not(feature = "lt2025_2"))]
-    pub fn replica_filter_reconcile(self) -> Admin<ReplicaFilterReconcile> {
+    pub fn replica_filter_reconcile(self) -> Admin<ReplicaFilterReconcile<Unselected>> {
         Admin::new(
             self.bin,
             self.global_opts,
@@ -309,6 +309,29 @@ impl<T: SubCommand> Admin<T> {
     }
 }
 
+pub mod compression {
+    /// Compress both the checkpoint and the journal (`-z`).
+    #[derive(Debug, Clone, Copy, Default)]
+    pub struct Both;
+
+    /// Compress the checkpoint only, leaving the journal uncompressed
+    /// (`-Z`).
+    #[derive(Debug, Clone, Copy, Default)]
+    pub struct CheckPointOnly;
+}
+
+impl ExclusiveOption for compression::Both {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-z");
+    }
+}
+
+impl ExclusiveOption for compression::CheckPointOnly {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-Z");
+    }
+}
+
 #[cfg_attr(
     feature = "lt2022_2",
     doc = "`p4 admin checkpoint [-z | -Z] [prefix]`: take a checkpoint."
@@ -321,11 +344,11 @@ impl<T: SubCommand> Admin<T> {
     not(feature = "lt2023_1"),
     doc = "`p4 admin checkpoint [-z | -Z] [-p [-N threads] [-m]] [prefix]`: take a checkpoint."
 )]
+/// The `C` type parameter encodes the compression mode (none, `-z`, or
+/// `-Z`) at compile time; see [`ExclusiveOption`].
 #[derive(Debug, Clone, Default)]
-pub struct CheckPoint {
-    gzip: bool,
-
-    gzip_uncompress: bool,
+pub struct CheckPoint<C = Unselected> {
+    compression: C,
 
     /// Added in p4 2023.1.
     #[cfg(not(feature = "lt2023_1"))]
@@ -340,17 +363,13 @@ pub struct CheckPoint {
     multiple_files: bool,
 }
 
-impl SubCommand for CheckPoint {
+impl<C: ExclusiveOption> SubCommand for CheckPoint<C> {
     fn name(&self) -> &str {
         "checkpoint"
     }
 
     fn inject_local_args(&self, command: &mut Command) {
-        if self.gzip_uncompress {
-            command.arg("-Z");
-        } else if self.gzip {
-            command.arg("-z");
-        }
+        self.compression.inject_args(command);
 
         #[cfg(not(feature = "lt2023_1"))]
         {
@@ -367,7 +386,7 @@ impl SubCommand for CheckPoint {
     }
 }
 
-impl Admin<CheckPoint> {
+impl<C: ExclusiveOption> Admin<CheckPoint<C>> {
     /// Spawns `p4 admin checkpoint` with the given checkpoint prefix as a
     /// child process.
     ///
@@ -389,193 +408,6 @@ impl Admin<CheckPoint> {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-    }
-
-    /// # Description
-    ///
-    /// -z
-    ///
-    #[cfg_attr(
-        feature = "lt2022_2",
-        doc = "For `p4 admin checkpoint` and `p4 admin journal`, save the checkpoint",
-        doc = "and saved journal file in compressed (gzip) format, appending the `.gz`",
-        doc = "suffix to the files."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2023_1", not(feature = "lt2022_2")),
-        doc = "For `p4 admin checkpoint -z` and `p4 admin journal -z`, save the",
-        doc = "checkpoint and journal file in compressed format. The `.gz` suffix is",
-        doc = "appended to compressed journals and checkpoint files, which are in",
-        doc = "gzip format. If you do not specify `-z` or `-Z`, no compression occurs."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2023_1"),
-        doc = "Save the checkpoint and journal file in compressed format. The `.gz`",
-        doc = "suffix is appended to compressed journals and checkpoint files, which",
-        doc = "are in gzip format. If you do not specify `-z` or `-Z`, no compression",
-        doc = "occurs."
-    )]
-    pub fn get_gzip(&self) -> bool {
-        self.sub_command.gzip
-    }
-
-    /// # Description
-    ///
-    /// -z
-    ///
-    #[cfg_attr(
-        feature = "lt2022_2",
-        doc = "For `p4 admin checkpoint` and `p4 admin journal`, save the checkpoint",
-        doc = "and saved journal file in compressed (gzip) format, appending the `.gz`",
-        doc = "suffix to the files."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2023_1", not(feature = "lt2022_2")),
-        doc = "For `p4 admin checkpoint -z` and `p4 admin journal -z`, save the",
-        doc = "checkpoint and journal file in compressed format. The `.gz` suffix is",
-        doc = "appended to compressed journals and checkpoint files, which are in",
-        doc = "gzip format. If you do not specify `-z` or `-Z`, no compression occurs."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2023_1"),
-        doc = "Save the checkpoint and journal file in compressed format. The `.gz`",
-        doc = "suffix is appended to compressed journals and checkpoint files, which",
-        doc = "are in gzip format. If you do not specify `-z` or `-Z`, no compression",
-        doc = "occurs."
-    )]
-    pub fn set_gzip(&mut self, gzip: bool) -> &mut Self {
-        self.sub_command.gzip = gzip;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -z
-    ///
-    #[cfg_attr(
-        feature = "lt2022_2",
-        doc = "For `p4 admin checkpoint` and `p4 admin journal`, save the checkpoint",
-        doc = "and saved journal file in compressed (gzip) format, appending the `.gz`",
-        doc = "suffix to the files."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2023_1", not(feature = "lt2022_2")),
-        doc = "For `p4 admin checkpoint -z` and `p4 admin journal -z`, save the",
-        doc = "checkpoint and journal file in compressed format. The `.gz` suffix is",
-        doc = "appended to compressed journals and checkpoint files, which are in",
-        doc = "gzip format. If you do not specify `-z` or `-Z`, no compression occurs."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2023_1"),
-        doc = "Save the checkpoint and journal file in compressed format. The `.gz`",
-        doc = "suffix is appended to compressed journals and checkpoint files, which",
-        doc = "are in gzip format. If you do not specify `-z` or `-Z`, no compression",
-        doc = "occurs."
-    )]
-    pub fn gzip(mut self, gzip: bool) -> Self {
-        self.sub_command.gzip = gzip;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -Z
-    ///
-    #[cfg_attr(
-        feature = "lt2017_2",
-        doc = "For `p4 admin checkpoint` and `p4 admin journal`, save the checkpoint",
-        doc = "in compressed (gzip) format, appending the `.gz` suffix to the file, but",
-        doc = "leave the journal uncompressed for use by replica servers."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2022_2", not(feature = "lt2017_2")),
-        doc = "For `p4 admin checkpoint`, save the checkpoint in compressed (gzip)",
-        doc = "format, appending the `.gz` suffix to the file, but leave the journal",
-        doc = "uncompressed for use by replica servers."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2023_1", not(feature = "lt2022_2")),
-        doc = "For `p4 admin checkpoint -Z`, save the checkpoint in compressed format,",
-        doc = "but leave the journal uncompressed for use by replica servers."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2023_1"),
-        doc = "For `p4 admin checkpoint -Z`, save the checkpoint in compressed format,",
-        doc = "but leave the journal uncompressed for use by replica servers. The",
-        doc = "`.gz` suffix is appended to compressed journals and checkpoint files,",
-        doc = "which are in gzip format. If you do not specify `-z` or `-Z`, no",
-        doc = "compression occurs."
-    )]
-    pub fn get_gzip_uncompress(&self) -> bool {
-        self.sub_command.gzip_uncompress
-    }
-
-    /// # Description
-    ///
-    /// -Z
-    ///
-    #[cfg_attr(
-        feature = "lt2017_2",
-        doc = "For `p4 admin checkpoint` and `p4 admin journal`, save the checkpoint",
-        doc = "in compressed (gzip) format, appending the `.gz` suffix to the file, but",
-        doc = "leave the journal uncompressed for use by replica servers."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2022_2", not(feature = "lt2017_2")),
-        doc = "For `p4 admin checkpoint`, save the checkpoint in compressed (gzip)",
-        doc = "format, appending the `.gz` suffix to the file, but leave the journal",
-        doc = "uncompressed for use by replica servers."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2023_1", not(feature = "lt2022_2")),
-        doc = "For `p4 admin checkpoint -Z`, save the checkpoint in compressed format,",
-        doc = "but leave the journal uncompressed for use by replica servers."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2023_1"),
-        doc = "For `p4 admin checkpoint -Z`, save the checkpoint in compressed format,",
-        doc = "but leave the journal uncompressed for use by replica servers. The",
-        doc = "`.gz` suffix is appended to compressed journals and checkpoint files,",
-        doc = "which are in gzip format. If you do not specify `-z` or `-Z`, no",
-        doc = "compression occurs."
-    )]
-    pub fn set_gzip_uncompress(&mut self, gzip_uncompress: bool) -> &mut Self {
-        self.sub_command.gzip_uncompress = gzip_uncompress;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -Z
-    ///
-    #[cfg_attr(
-        feature = "lt2017_2",
-        doc = "For `p4 admin checkpoint` and `p4 admin journal`, save the checkpoint",
-        doc = "in compressed (gzip) format, appending the `.gz` suffix to the file, but",
-        doc = "leave the journal uncompressed for use by replica servers."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2022_2", not(feature = "lt2017_2")),
-        doc = "For `p4 admin checkpoint`, save the checkpoint in compressed (gzip)",
-        doc = "format, appending the `.gz` suffix to the file, but leave the journal",
-        doc = "uncompressed for use by replica servers."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2023_1", not(feature = "lt2022_2")),
-        doc = "For `p4 admin checkpoint -Z`, save the checkpoint in compressed format,",
-        doc = "but leave the journal uncompressed for use by replica servers."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2023_1"),
-        doc = "For `p4 admin checkpoint -Z`, save the checkpoint in compressed format,",
-        doc = "but leave the journal uncompressed for use by replica servers. The",
-        doc = "`.gz` suffix is appended to compressed journals and checkpoint files,",
-        doc = "which are in gzip format. If you do not specify `-z` or `-Z`, no",
-        doc = "compression occurs."
-    )]
-    pub fn gzip_uncompress(mut self, gzip_uncompress: bool) -> Self {
-        self.sub_command.gzip_uncompress = gzip_uncompress;
-        self
     }
 
     /// # Description
@@ -738,6 +570,93 @@ impl Admin<CheckPoint> {
     pub fn multiple_files(mut self, multiple_files: bool) -> Self {
         self.sub_command.multiple_files = multiple_files;
         self
+    }
+}
+
+impl Admin<CheckPoint<Unselected>> {
+    /// # Description
+    ///
+    /// -z
+    ///
+    #[cfg_attr(
+        feature = "lt2022_2",
+        doc = "For `p4 admin checkpoint` and `p4 admin journal`, save the checkpoint",
+        doc = "and saved journal file in compressed (gzip) format, appending the `.gz`",
+        doc = "suffix to the files."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2023_1", not(feature = "lt2022_2")),
+        doc = "For `p4 admin checkpoint -z` and `p4 admin journal -z`, save the",
+        doc = "checkpoint and journal file in compressed format. The `.gz` suffix is",
+        doc = "appended to compressed journals and checkpoint files, which are in",
+        doc = "gzip format. If you do not specify `-z` or `-Z`, no compression occurs."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2023_1"),
+        doc = "Save the checkpoint and journal file in compressed format. The `.gz`",
+        doc = "suffix is appended to compressed journals and checkpoint files, which",
+        doc = "are in gzip format. If you do not specify `-z` or `-Z`, no compression",
+        doc = "occurs."
+    )]
+    pub fn compress_both(self) -> Admin<CheckPoint<compression::Both>> {
+        Admin {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            sub_command: CheckPoint::<compression::Both> {
+                compression: compression::Both,
+                #[cfg(not(feature = "lt2023_1"))]
+                parallel: self.sub_command.parallel,
+                #[cfg(not(feature = "lt2023_1"))]
+                threads: self.sub_command.threads,
+                #[cfg(not(feature = "lt2023_1"))]
+                multiple_files: self.sub_command.multiple_files,
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// -Z
+    ///
+    #[cfg_attr(
+        feature = "lt2017_2",
+        doc = "For `p4 admin checkpoint` and `p4 admin journal`, save the checkpoint",
+        doc = "in compressed (gzip) format, appending the `.gz` suffix to the file, but",
+        doc = "leave the journal uncompressed for use by replica servers."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2022_2", not(feature = "lt2017_2")),
+        doc = "For `p4 admin checkpoint`, save the checkpoint in compressed (gzip)",
+        doc = "format, appending the `.gz` suffix to the file, but leave the journal",
+        doc = "uncompressed for use by replica servers."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2023_1", not(feature = "lt2022_2")),
+        doc = "For `p4 admin checkpoint -Z`, save the checkpoint in compressed format,",
+        doc = "but leave the journal uncompressed for use by replica servers."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2023_1"),
+        doc = "For `p4 admin checkpoint -Z`, save the checkpoint in compressed format,",
+        doc = "but leave the journal uncompressed for use by replica servers. The",
+        doc = "`.gz` suffix is appended to compressed journals and checkpoint files,",
+        doc = "which are in gzip format. If you do not specify `-z` or `-Z`, no",
+        doc = "compression occurs."
+    )]
+    pub fn compress_checkpoint_only(self) -> Admin<CheckPoint<compression::CheckPointOnly>> {
+        Admin {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            sub_command: CheckPoint::<compression::CheckPointOnly> {
+                compression: compression::CheckPointOnly,
+                #[cfg(not(feature = "lt2023_1"))]
+                parallel: self.sub_command.parallel,
+                #[cfg(not(feature = "lt2023_1"))]
+                threads: self.sub_command.threads,
+                #[cfg(not(feature = "lt2023_1"))]
+                multiple_files: self.sub_command.multiple_files,
+            },
+        }
     }
 }
 
@@ -927,7 +846,6 @@ pub enum SpecifiedType {
 
 impl SpecifiedType {
     /// CLI value used with `-s`, used when rendering the command arguments.
-    #[allow(dead_code)]
     pub(crate) fn to_str(&self) -> &str {
         match self {
             Self::Client => "client",
@@ -956,30 +874,53 @@ impl SpecifiedType {
     }
 }
 
-/// `p4 admin updatespecdepot [-a | -s type]`: archive forms into the spec
-/// depot.
-#[derive(Debug, Clone, Default)]
-pub struct UpdateSpecDepot {
-    all: bool,
+/// Variants of the `[-a | -s type]` mutually exclusive option group of
+/// `p4 admin updatespecdepot`.
+pub mod spec {
+    use super::SpecifiedType;
 
-    specified_type: Option<SpecifiedType>,
+    /// Archive all current forms (`-a`).
+    #[derive(Debug, Clone, Copy, Default)]
+    pub struct All;
+
+    /// Archive forms of the specified type (`-s type`).
+    #[derive(Debug, Clone)]
+    pub struct Selected(pub SpecifiedType);
 }
 
-impl SubCommand for UpdateSpecDepot {
+impl ExclusiveOption for spec::All {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-a");
+    }
+}
+
+impl ExclusiveOption for spec::Selected {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-s").arg(self.0.to_str());
+    }
+}
+
+/// `p4 admin updatespecdepot [-a | -s type]`: archive forms into the spec
+/// depot.
+///
+/// The `S` type parameter encodes the selected variant of the `[-a | -s type]`
+/// group at compile time; see [`ExclusiveOption`] and [`spec`].
+#[derive(Debug, Clone, Default)]
+pub struct UpdateSpecDepot<S = Unselected> {
+    spec: S,
+}
+
+impl<S: ExclusiveOption> SubCommand for UpdateSpecDepot<S> {
     fn name(&self) -> &str {
         "updatespecdepot"
     }
 
     fn inject_local_args(&self, command: &mut Command) {
-        if self.all {
-            command.arg("-a");
-        } else if let Some(specified_type) = self.specified_type.as_ref() {
-            command.arg("-s").arg(specified_type.to_str());
-        }
+        self.spec.inject_args(command);
     }
 }
 
-impl Admin<UpdateSpecDepot> {
+impl Admin<UpdateSpecDepot<Unselected>> {
     /// # Description
     ///
     /// -a
@@ -994,46 +935,12 @@ impl Admin<UpdateSpecDepot> {
         doc = "For `p4 admin updatespecdepot -a`, update the spec depot with all",
         doc = "current forms."
     )]
-    pub fn get_all(&self) -> bool {
-        self.sub_command.all
-    }
-
-    /// # Description
-    ///
-    /// -a
-    ///
-    #[cfg_attr(
-        feature = "lt2022_2",
-        doc = "For `p4 admin updatespecdepot`, update the spec depot with all current",
-        doc = "forms."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2022_2"),
-        doc = "For `p4 admin updatespecdepot -a`, update the spec depot with all",
-        doc = "current forms."
-    )]
-    pub fn set_all(&mut self, all: bool) -> &mut Self {
-        self.sub_command.all = all;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -a
-    ///
-    #[cfg_attr(
-        feature = "lt2022_2",
-        doc = "For `p4 admin updatespecdepot`, update the spec depot with all current",
-        doc = "forms."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2022_2"),
-        doc = "For `p4 admin updatespecdepot -a`, update the spec depot with all",
-        doc = "current forms."
-    )]
-    pub fn all(mut self, all: bool) -> Self {
-        self.sub_command.all = all;
-        self
+    pub fn all(self) -> Admin<UpdateSpecDepot<spec::All>> {
+        Admin {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            sub_command: UpdateSpecDepot { spec: spec::All },
+        }
     }
 
     /// # Description
@@ -1067,8 +974,54 @@ impl Admin<UpdateSpecDepot> {
         doc = "`branch`, `label`, `typemap`, `group`, `user`, `job`, `stream`,",
         doc = "`triggers`, `protect`, `server`, `license`, or `jobspec`."
     )]
-    pub fn get_specified_type(&self) -> Option<&SpecifiedType> {
-        self.sub_command.specified_type.as_ref()
+    pub fn specified_type(
+        self,
+        specified_type: SpecifiedType,
+    ) -> Admin<UpdateSpecDepot<spec::Selected>> {
+        Admin {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            sub_command: UpdateSpecDepot {
+                spec: spec::Selected(specified_type),
+            },
+        }
+    }
+}
+
+impl Admin<UpdateSpecDepot<spec::Selected>> {
+    /// # Description
+    ///
+    /// -s type
+    ///
+    #[cfg_attr(
+        feature = "lt2016_1",
+        doc = "For `p4 admin updatespecdepot`, update the spec depot with forms of the",
+        doc = "specified type, where type is one of `client`, `depot`, `branch`,",
+        doc = "`label`, `typemap`, `group`, `user`, or `job`."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2018_1", not(feature = "lt2016_1")),
+        doc = "For `p4 admin updatespecdepot`, update the spec depot with forms of the",
+        doc = "specified type, where type is one of `client`, `depot`, `branch`,",
+        doc = "`label`, `typemap`, `group`, `user`, `job`, `stream`, `triggers`,",
+        doc = "`protect`, `server`, `license`, or `jobspec`."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2022_2", not(feature = "lt2018_1")),
+        doc = "For `p4 admin updatespecdepot`, update the spec depot with forms of the",
+        doc = "specified type, where type is one of `client`, `depot`, `repo`,",
+        doc = "`branch`, `label`, `typemap`, `group`, `user`, `job`, `stream`,",
+        doc = "`triggers`, `protect`, `server`, `license`, or `jobspec`."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2022_2"),
+        doc = "For `p4 admin updatespecdepot -s`, update the spec depot with forms of",
+        doc = "the specified type, where type is one of `client`, `depot`, `repo`,",
+        doc = "`branch`, `label`, `typemap`, `group`, `user`, `job`, `stream`,",
+        doc = "`triggers`, `protect`, `server`, `license`, or `jobspec`."
+    )]
+    pub fn get_specified_type(&self) -> &SpecifiedType {
+        &self.sub_command.spec.0
     }
 
     /// # Description
@@ -1103,47 +1056,40 @@ impl Admin<UpdateSpecDepot> {
         doc = "`triggers`, `protect`, `server`, `license`, or `jobspec`."
     )]
     pub fn set_specified_type(&mut self, specified_type: SpecifiedType) -> &mut Self {
-        self.sub_command.specified_type = Some(specified_type);
-        self
-    }
-
-    /// # Description
-    ///
-    /// -s type
-    ///
-    #[cfg_attr(
-        feature = "lt2016_1",
-        doc = "For `p4 admin updatespecdepot`, update the spec depot with forms of the",
-        doc = "specified type, where type is one of `client`, `depot`, `branch`,",
-        doc = "`label`, `typemap`, `group`, `user`, or `job`."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2018_1", not(feature = "lt2016_1")),
-        doc = "For `p4 admin updatespecdepot`, update the spec depot with forms of the",
-        doc = "specified type, where type is one of `client`, `depot`, `branch`,",
-        doc = "`label`, `typemap`, `group`, `user`, `job`, `stream`, `triggers`,",
-        doc = "`protect`, `server`, `license`, or `jobspec`."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2022_2", not(feature = "lt2018_1")),
-        doc = "For `p4 admin updatespecdepot`, update the spec depot with forms of the",
-        doc = "specified type, where type is one of `client`, `depot`, `repo`,",
-        doc = "`branch`, `label`, `typemap`, `group`, `user`, `job`, `stream`,",
-        doc = "`triggers`, `protect`, `server`, `license`, or `jobspec`."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2022_2"),
-        doc = "For `p4 admin updatespecdepot -s`, update the spec depot with forms of",
-        doc = "the specified type, where type is one of `client`, `depot`, `repo`,",
-        doc = "`branch`, `label`, `typemap`, `group`, `user`, `job`, `stream`,",
-        doc = "`triggers`, `protect`, `server`, `license`, or `jobspec`."
-    )]
-    pub fn specified_type(mut self, specified_type: SpecifiedType) -> Self {
-        self.sub_command.specified_type = Some(specified_type);
+        self.sub_command.spec = spec::Selected(specified_type);
         self
     }
 }
 
+/// Variants of the `{-a | -u user}` mutually exclusive option group of
+/// `p4 admin resetpassword`.
+pub mod set_password {
+    /// Reset all users' passwords (`-a`).
+    #[derive(Debug, Clone, Copy, Default)]
+    pub struct All;
+
+    /// Reset a single user's password (`-u user`).
+    #[derive(Debug, Clone)]
+    pub struct User(pub String);
+}
+
+impl ExclusiveOption for set_password::All {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-a");
+    }
+}
+
+impl ExclusiveOption for set_password::User {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-u").arg(&self.0);
+    }
+}
+
+/// `p4 admin resetpassword {-a | -u user} [-l]`: force users to reset their
+/// passwords.
+///
+/// The `T` type parameter encodes the selected variant of the `{-a | -u user}`
+/// group at compile time; see [`ExclusiveOption`] and [`set_password`].
 #[cfg_attr(
     feature = "lt2025_2",
     doc = "`p4 admin resetpassword -a | -u user`: force users to reset their passwords."
@@ -1153,27 +1099,21 @@ impl Admin<UpdateSpecDepot> {
     doc = "`p4 admin resetpassword {-a | -u user} [-l]`: force users to reset their passwords."
 )]
 #[derive(Debug, Clone, Default)]
-pub struct ResetPassword {
-    all: bool,
-
-    user: Option<String>,
+pub struct ResetPassword<T = Unselected> {
+    set_password: T,
 
     /// Added in p4 2025.2.
     #[cfg(not(feature = "lt2025_2"))]
     super_user: bool,
 }
 
-impl SubCommand for ResetPassword {
+impl<T: ExclusiveOption> SubCommand for ResetPassword<T> {
     fn name(&self) -> &str {
         "resetpassword"
     }
 
     fn inject_local_args(&self, command: &mut Command) {
-        if self.all {
-            command.arg("-a");
-        } else if let Some(user) = self.user.as_ref() {
-            command.arg("-u").arg(user);
-        }
+        self.set_password.inject_args(command);
         #[cfg(not(feature = "lt2025_2"))]
         if self.super_user {
             command.arg("-l");
@@ -1181,7 +1121,7 @@ impl SubCommand for ResetPassword {
     }
 }
 
-impl Admin<ResetPassword> {
+impl Admin<ResetPassword<Unselected>> {
     /// # Description
     ///
     /// -a
@@ -1193,40 +1133,16 @@ impl Admin<ResetPassword> {
         doc = "presently exist (and who have passwords) are reset."
     )]
     #[cfg_attr(not(feature = "lt2023_1"), doc = "All users.")]
-    pub fn get_all(&self) -> bool {
-        self.sub_command.all
-    }
-
-    /// # Description
-    ///
-    /// -a
-    ///
-    #[cfg_attr(
-        feature = "lt2023_1",
-        doc = "Force password reset of all users with passwords, including the",
-        doc = "superuser who issued the command. Only the passwords of users who",
-        doc = "presently exist (and who have passwords) are reset."
-    )]
-    #[cfg_attr(not(feature = "lt2023_1"), doc = "All users.")]
-    pub fn set_all(&mut self, all: bool) -> &mut Self {
-        self.sub_command.all = all;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -a
-    ///
-    #[cfg_attr(
-        feature = "lt2023_1",
-        doc = "Force password reset of all users with passwords, including the",
-        doc = "superuser who issued the command. Only the passwords of users who",
-        doc = "presently exist (and who have passwords) are reset."
-    )]
-    #[cfg_attr(not(feature = "lt2023_1"), doc = "All users.")]
-    pub fn all(mut self, all: bool) -> Self {
-        self.sub_command.all = all;
-        self
+    pub fn all(self) -> Admin<ResetPassword<set_password::All>> {
+        Admin {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            sub_command: ResetPassword {
+                set_password: set_password::All,
+                #[cfg(not(feature = "lt2025_2"))]
+                super_user: self.sub_command.super_user,
+            },
+        }
     }
 
     /// # Description
@@ -1239,8 +1155,32 @@ impl Admin<ResetPassword> {
         doc = "before they can run another command."
     )]
     #[cfg_attr(not(feature = "lt2023_1"), doc = "The specified user.")]
-    pub fn get_user(&self) -> Option<&String> {
-        self.sub_command.user.as_ref()
+    pub fn user(self, user: impl Into<String>) -> Admin<ResetPassword<set_password::User>> {
+        Admin {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            sub_command: ResetPassword {
+                set_password: set_password::User(user.into()),
+                #[cfg(not(feature = "lt2025_2"))]
+                super_user: self.sub_command.super_user,
+            },
+        }
+    }
+}
+
+impl Admin<ResetPassword<set_password::User>> {
+    /// # Description
+    ///
+    /// -u user
+    ///
+    #[cfg_attr(
+        feature = "lt2023_1",
+        doc = "Force a single user with an existing password to reset their password",
+        doc = "before they can run another command."
+    )]
+    #[cfg_attr(not(feature = "lt2023_1"), doc = "The specified user.")]
+    pub fn get_user(&self) -> &str {
+        &self.sub_command.set_password.0
     }
 
     /// # Description
@@ -1254,25 +1194,12 @@ impl Admin<ResetPassword> {
     )]
     #[cfg_attr(not(feature = "lt2023_1"), doc = "The specified user.")]
     pub fn set_user(&mut self, user: impl Into<String>) -> &mut Self {
-        self.sub_command.user = Some(user.into());
+        self.sub_command.set_password.0 = user.into();
         self
     }
+}
 
-    /// # Description
-    ///
-    /// -u user
-    ///
-    #[cfg_attr(
-        feature = "lt2023_1",
-        doc = "Force a single user with an existing password to reset their password",
-        doc = "before they can run another command."
-    )]
-    #[cfg_attr(not(feature = "lt2023_1"), doc = "The specified user.")]
-    pub fn user(mut self, user: impl Into<String>) -> Self {
-        self.sub_command.user = Some(user.into());
-        self
-    }
-
+impl<T: ExclusiveOption> Admin<ResetPassword<T>> {
     /// # Description
     ///
     /// -l
@@ -1366,34 +1293,94 @@ impl SubCommand for ResourceMonitor {
     fn inject_local_args(&self, _: &mut Command) {}
 }
 
-/// `p4 admin replica-filter-reconcile [--restrict-only | --expand-only]
-/// [table ...]`: reconcile the replica database after filter changes. Added in
-/// p4 2025.2.
+/// Variants of the `[--restrict-only | --expand-only]` mutually exclusive
+/// option group of `p4 admin replica-filter-reconcile`.
 #[cfg(not(feature = "lt2025_2"))]
-#[derive(Debug, Clone, Default)]
-pub struct ReplicaFilterReconcile {
-    restrict_only: bool,
+pub mod reconcile {
+    /// Only remove applicable database records (`--restrict-only`).
+    #[derive(Debug, Clone, Copy, Default)]
+    pub struct RestrictOnly;
 
-    expand_only: bool,
+    /// Only add applicable database records (`--expand-only`).
+    #[derive(Debug, Clone, Copy, Default)]
+    pub struct ExpandOnly;
 }
 
 #[cfg(not(feature = "lt2025_2"))]
-impl SubCommand for ReplicaFilterReconcile {
+impl ExclusiveOption for reconcile::RestrictOnly {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("--restrict-only");
+    }
+}
+
+#[cfg(not(feature = "lt2025_2"))]
+impl ExclusiveOption for reconcile::ExpandOnly {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("--expand-only");
+    }
+}
+
+/// `p4 admin replica-filter-reconcile [--restrict-only | --expand-only]
+/// [table ...]`: reconcile the replica database after filter changes. Added in
+/// p4 2025.2.
+///
+/// The `M` type parameter encodes the selected variant of the
+/// `[--restrict-only | --expand-only]` group at compile time; see
+/// [`ExclusiveOption`] and [`reconcile`].
+#[cfg(not(feature = "lt2025_2"))]
+#[derive(Debug, Clone, Default)]
+pub struct ReplicaFilterReconcile<M = Unselected> {
+    reconcile: M,
+}
+
+#[cfg(not(feature = "lt2025_2"))]
+impl<M: ExclusiveOption> SubCommand for ReplicaFilterReconcile<M> {
     fn name(&self) -> &str {
         "replica-filter-reconcile"
     }
 
     fn inject_local_args(&self, command: &mut Command) {
-        if self.restrict_only {
-            command.arg("--restrict-only");
-        } else if self.expand_only {
-            command.arg("--expand-only");
+        self.reconcile.inject_args(command);
+    }
+}
+
+#[cfg(not(feature = "lt2025_2"))]
+impl Admin<ReplicaFilterReconcile<Unselected>> {
+    /// # Description
+    ///
+    /// --restrict-only
+    ///
+    /// Reconcile the replica database by only removing applicable database
+    /// records.
+    pub fn restrict_only(self) -> Admin<ReplicaFilterReconcile<reconcile::RestrictOnly>> {
+        Admin {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            sub_command: ReplicaFilterReconcile {
+                reconcile: reconcile::RestrictOnly,
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// --expand-only
+    ///
+    /// Reconcile the replica database by only adding applicable database
+    /// records.
+    pub fn expand_only(self) -> Admin<ReplicaFilterReconcile<reconcile::ExpandOnly>> {
+        Admin {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            sub_command: ReplicaFilterReconcile {
+                reconcile: reconcile::ExpandOnly,
+            },
         }
     }
 }
 
 #[cfg(not(feature = "lt2025_2"))]
-impl Admin<ReplicaFilterReconcile> {
+impl<M: ExclusiveOption> Admin<ReplicaFilterReconcile<M>> {
     /// Spawns `p4 admin replica-filter-reconcile` for the given tables as a
     /// child process.
     ///
@@ -1415,70 +1402,6 @@ impl Admin<ReplicaFilterReconcile> {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
-    }
-
-    /// # Description
-    ///
-    /// --restrict-only
-    ///
-    /// Reconcile the replica database by only removing applicable database
-    /// records.
-    pub fn get_restrict_only(&self) -> bool {
-        self.sub_command.restrict_only
-    }
-
-    /// # Description
-    ///
-    /// --restrict-only
-    ///
-    /// Reconcile the replica database by only removing applicable database
-    /// records.
-    pub fn set_restrict_only(&mut self, restrict_only: bool) -> &mut Self {
-        self.sub_command.restrict_only = restrict_only;
-        self
-    }
-
-    /// # Description
-    ///
-    /// --restrict-only
-    ///
-    /// Reconcile the replica database by only removing applicable database
-    /// records.
-    pub fn restrict_only(mut self, restrict_only: bool) -> Self {
-        self.sub_command.restrict_only = restrict_only;
-        self
-    }
-
-    /// # Description
-    ///
-    /// --expand-only
-    ///
-    /// Reconcile the replica database by only adding applicable database
-    /// records.
-    pub fn get_expand_only(&self) -> bool {
-        self.sub_command.expand_only
-    }
-
-    /// # Description
-    ///
-    /// --expand-only
-    ///
-    /// Reconcile the replica database by only adding applicable database
-    /// records.
-    pub fn set_expand_only(&mut self, expand_only: bool) -> &mut Self {
-        self.sub_command.expand_only = expand_only;
-        self
-    }
-
-    /// # Description
-    ///
-    /// --expand-only
-    ///
-    /// Reconcile the replica database by only adding applicable database
-    /// records.
-    pub fn expand_only(mut self, expand_only: bool) -> Self {
-        self.sub_command.expand_only = expand_only;
-        self
     }
 }
 
@@ -1545,9 +1468,10 @@ mod tests {
     }
 
     #[test]
-    fn checkpoint_gzip() {
-        let mut admin = AdminEntry::new("p4", GlobalOpts::new()).checkpoint();
-        admin.set_gzip(true);
+    fn checkpoint_compress_both() {
+        let admin = AdminEntry::new("p4", GlobalOpts::new())
+            .checkpoint()
+            .compress_both();
 
         assert_eq!(
             args_of(&admin.setup_command("p4")),
@@ -1556,9 +1480,10 @@ mod tests {
     }
 
     #[test]
-    fn checkpoint_uncompress_takes_precedence_over_gzip() {
-        let mut admin = AdminEntry::new("p4", GlobalOpts::new()).checkpoint();
-        admin.set_gzip(true).set_gzip_uncompress(true);
+    fn checkpoint_compress_checkpoint_only() {
+        let admin = AdminEntry::new("p4", GlobalOpts::new())
+            .checkpoint()
+            .compress_checkpoint_only();
 
         assert_eq!(
             args_of(&admin.setup_command("p4")),
@@ -1568,8 +1493,9 @@ mod tests {
 
     #[test]
     fn checkpoint_with_prefix() {
-        let mut admin = AdminEntry::new("p4", GlobalOpts::new()).checkpoint();
-        admin.set_gzip(true);
+        let admin = AdminEntry::new("p4", GlobalOpts::new())
+            .checkpoint()
+            .compress_both();
 
         // Mirrors `spawn_with`/`output_with`, which append the prefix after
         // the assembled command.
@@ -1607,8 +1533,9 @@ mod tests {
 
     #[test]
     fn updatespecdepot_all() {
-        let mut admin = AdminEntry::new("p4", GlobalOpts::new()).updatespecdepot();
-        admin.set_all(true);
+        let admin = AdminEntry::new("p4", GlobalOpts::new())
+            .updatespecdepot()
+            .all();
 
         assert_eq!(
             args_of(&admin.setup_command("p4")),
@@ -1620,8 +1547,9 @@ mod tests {
     /// exported outside the crate.
     #[test]
     fn updatespecdepot_specified_type() {
-        let mut admin = Admin::new("p4", GlobalOpts::new(), UpdateSpecDepot::default());
-        admin.set_specified_type(SpecifiedType::Client);
+        let admin = AdminEntry::new("p4", GlobalOpts::new())
+            .updatespecdepot()
+            .specified_type(SpecifiedType::Client);
 
         assert_eq!(
             args_of(&admin.setup_command("p4")),
@@ -1631,8 +1559,9 @@ mod tests {
 
     #[test]
     fn resetpassword_all() {
-        let mut admin = AdminEntry::new("p4", GlobalOpts::new()).resetpassword();
-        admin.set_all(true);
+        let admin = AdminEntry::new("p4", GlobalOpts::new())
+            .resetpassword()
+            .all();
 
         assert_eq!(
             args_of(&admin.setup_command("p4")),
@@ -1642,8 +1571,9 @@ mod tests {
 
     #[test]
     fn resetpassword_single_user() {
-        let mut admin = AdminEntry::new("p4", GlobalOpts::new()).resetpassword();
-        admin.set_user("bruno");
+        let admin = AdminEntry::new("p4", GlobalOpts::new())
+            .resetpassword()
+            .user("bruno");
 
         assert_eq!(
             args_of(&admin.setup_command("p4")),
@@ -1654,8 +1584,9 @@ mod tests {
     #[cfg(not(feature = "lt2025_2"))]
     #[test]
     fn resetpassword_super_user() {
-        let mut admin = AdminEntry::new("p4", GlobalOpts::new()).resetpassword();
-        admin.set_super_user(true);
+        let admin = AdminEntry::new("p4", GlobalOpts::new())
+            .resetpassword()
+            .super_user(true);
 
         assert_eq!(
             args_of(&admin.setup_command("p4")),
@@ -1668,11 +1599,24 @@ mod tests {
     fn replica_filter_reconcile_restrict_only() {
         let admin = AdminEntry::new("p4", GlobalOpts::new())
             .replica_filter_reconcile()
-            .restrict_only(true);
+            .restrict_only();
 
         assert_eq!(
             args_of(&admin.setup_command("p4")),
             ["admin", "replica-filter-reconcile", "--restrict-only"]
+        );
+    }
+
+    #[cfg(not(feature = "lt2025_2"))]
+    #[test]
+    fn replica_filter_reconcile_expand_only() {
+        let admin = AdminEntry::new("p4", GlobalOpts::new())
+            .replica_filter_reconcile()
+            .expand_only();
+
+        assert_eq!(
+            args_of(&admin.setup_command("p4")),
+            ["admin", "replica-filter-reconcile", "--expand-only"]
         );
     }
 

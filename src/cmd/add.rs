@@ -19,7 +19,7 @@ pub struct Add {
 
     downgrade: bool,
 
-    force_wildcard: bool,
+    force_literal_filenames: bool,
 
     skip_ignore: bool,
 
@@ -40,7 +40,7 @@ impl SubCommand for Add {
         if self.downgrade {
             command.arg("-d");
         }
-        if self.force_wildcard {
+        if self.force_literal_filenames {
             command.arg("-f");
         }
         if self.skip_ignore {
@@ -275,8 +275,8 @@ impl Add {
         doc = "representation. After the files are added, refer to them using the",
         doc = "reformatted file name instead of the local file system name."
     )]
-    pub fn get_force_wildcard(&self) -> bool {
-        self.force_wildcard
+    pub fn get_force_literal_filenames(&self) -> bool {
+        self.force_literal_filenames
     }
 
     /// # Description
@@ -319,8 +319,8 @@ impl Add {
         doc = "representation. After the files are added, refer to them using the",
         doc = "reformatted file name instead of the local file system name."
     )]
-    pub fn set_force_wildcard(&mut self, v: bool) -> &mut Self {
-        self.force_wildcard = v;
+    pub fn set_force_literal_filenames(&mut self, v: bool) -> &mut Self {
+        self.force_literal_filenames = v;
         self
     }
 
@@ -364,8 +364,8 @@ impl Add {
         doc = "representation. After the files are added, refer to them using the",
         doc = "reformatted file name instead of the local file system name."
     )]
-    pub fn force_wildcard(mut self, v: bool) -> Self {
-        self.force_wildcard = v;
+    pub fn force_literal_filenames(mut self, v: bool) -> Self {
+        self.force_literal_filenames = v;
         self
     }
 
@@ -616,7 +616,7 @@ mod tests {
         let mut add = Add::new("p4", GlobalOpts::new());
         add.set_change_list("42")
             .set_downgrade(true)
-            .set_force_wildcard(true)
+            .set_force_literal_filenames(true)
             .set_skip_ignore(true)
             .set_preview(true)
             .set_filetype("text");

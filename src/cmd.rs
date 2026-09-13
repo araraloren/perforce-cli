@@ -53,6 +53,38 @@ impl LongOutput {
     }
 }
 
+/// The default "no option selected" variant, shared by every
+/// [`ExclusiveOption`] group.
+///
+/// It is a zero-sized type whose [`ExclusiveOption::inject_args`] is a no-op,
+/// so any mutually exclusive option group can use it as its default type
+/// parameter instead of defining its own empty variant.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Unselected;
+
+impl ExclusiveOption for Unselected {
+    fn inject_args(&self, _: &mut Command) {}
+}
+
+/// Marker trait for a mutually exclusive option group.
+///
+/// Some Perforce commands accept a set of options where only one may be
+/// selected at a time (for example `p4 admin checkpoint [-z | -Z]` or
+/// `p4 admin updatespecdepot [-a | -s type]`). Each variant of such a group
+/// implements this trait to inject its own CLI arguments; the selected
+/// variant is encoded in a type parameter so that the alternatives are
+/// unavailable at compile time.
+///
+/// Variants may carry their own data (for example the `type` argument of
+/// `-s type`) and inject any number of arguments, keeping the trait open to
+/// option groups more complex than a single flag.
+pub trait ExclusiveOption {
+    #[allow(unused_variables)]
+    /// Inject the CLI arguments corresponding to this selection into
+    /// `command`.
+    fn inject_args(&self, command: &mut Command) {}
+}
+
 pub trait SubCommand {
     fn name(&self) -> &str;
 
