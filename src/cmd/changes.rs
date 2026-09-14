@@ -5,9 +5,29 @@ use std::{
 };
 
 use crate::{
-    cmd::{LongOutput, SubCommand},
+    cmd::{ExclusiveOption, SubCommand, Unselected},
     global::GlobalOpts,
 };
+
+/// `-l`: full text of each changelist description.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FullDescription;
+
+impl ExclusiveOption for FullDescription {
+    fn inject_args(&self, command: &mut std::process::Command) {
+        command.arg("-l");
+    }
+}
+
+/// `-L`: full text truncated at 250 characters.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TruncatedDescription;
+
+impl ExclusiveOption for TruncatedDescription {
+    fn inject_args(&self, command: &mut std::process::Command) {
+        command.arg("-L");
+    }
+}
 
 /// User filter for the `-u` / `--me` options.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,39 +85,46 @@ impl Status {
 /// List submitted and pending changelists.
 ///
 /// The command `p4 changelists` is an alias for `p4 changes`.
+///
+/// The `L` type parameter tracks the `-l` / `-L` long output mode at
+/// compile time; see [`FullDescription`], [`TruncatedDescription`],
+/// [`Self::long_output_full`], and [`Self::long_output_truncated`].
 #[derive(Debug, Clone, Default)]
-pub struct Changes {
+pub struct Changes<L = Unselected> {
     bin: PathBuf,
 
     global_opts: GlobalOpts,
 
-    client: Option<String>,
-
     #[cfg(not(feature = "lt2015_2"))]
     min_change_list: Option<String>,
 
-    restricted: bool,
+    include_restricted: bool,
 
-    integrated: bool,
+    include_integrated: bool,
 
-    long_output: Option<LongOutput>,
+    include_time: bool,
+
+    long_output: L,
 
     limit: Option<u64>,
 
     #[cfg(not(feature = "lt2017_2"))]
-    reverse: bool,
+    reverse_order: bool,
 
-    status: Option<Status>,
+    filter_status: Option<Status>,
 
-    time: bool,
+    filter_users: Option<Vec<User>>,
 
-    user: Option<User>,
+    filter_clients: Option<Vec<String>>,
+
+    #[cfg(not(feature = "lt2025_1"))]
+    client_case_insensitive: bool,
 
     #[cfg(not(feature = "lt2022_2"))]
     stream: Option<bool>,
 }
 
-impl Changes {
+impl Changes<Unselected> {
     /// Creates a new `p4 changes` command.
     ///
     /// `bin` is the path to the Perforce command-line executable.
@@ -109,6 +136,69 @@ impl Changes {
         }
     }
 
+    /// # Description
+    ///
+    /// `-l`
+    ///
+    /// List long output, with the full text of each changelist description.
+    ///
+    /// Transitions this command to the [`FullDescription`] state.
+    pub fn long_output_full(self) -> Changes<FullDescription> {
+        Changes {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            #[cfg(not(feature = "lt2015_2"))]
+            min_change_list: self.min_change_list,
+            include_restricted: self.include_restricted,
+            include_integrated: self.include_integrated,
+            include_time: self.include_time,
+            long_output: FullDescription,
+            limit: self.limit,
+            #[cfg(not(feature = "lt2017_2"))]
+            reverse_order: self.reverse_order,
+            filter_status: self.filter_status,
+            filter_users: self.filter_users,
+            filter_clients: self.filter_clients,
+            #[cfg(not(feature = "lt2025_1"))]
+            client_case_insensitive: self.client_case_insensitive,
+            #[cfg(not(feature = "lt2022_2"))]
+            stream: self.stream,
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-L`
+    ///
+    /// List long output, with the full text of each changelist description
+    /// truncated at 250 characters.
+    ///
+    /// Transitions this command to the [`TruncatedDescription`] state.
+    pub fn long_output_truncated(self) -> Changes<TruncatedDescription> {
+        Changes {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            #[cfg(not(feature = "lt2015_2"))]
+            min_change_list: self.min_change_list,
+            include_restricted: self.include_restricted,
+            include_integrated: self.include_integrated,
+            include_time: self.include_time,
+            long_output: TruncatedDescription,
+            limit: self.limit,
+            #[cfg(not(feature = "lt2017_2"))]
+            reverse_order: self.reverse_order,
+            filter_status: self.filter_status,
+            filter_users: self.filter_users,
+            filter_clients: self.filter_clients,
+            #[cfg(not(feature = "lt2025_1"))]
+            client_case_insensitive: self.client_case_insensitive,
+            #[cfg(not(feature = "lt2022_2"))]
+            stream: self.stream,
+        }
+    }
+}
+
+impl<L: ExclusiveOption> Changes<L> {
     /// Runs `p4 changes` for the given files, inheriting the parent process's
     /// standard streams.
     ///
@@ -215,18 +305,22 @@ impl Changes {
     ///
     /// `-c client`
     ///
-    /// List only changes made from the named client workspace.
-    pub fn get_client(&self) -> Option<&String> {
-        self.client.as_ref()
+    /// List only changes made from the named client workspace. This option
+    /// can be repeated to filter for multiple clients.
+    pub fn get_clients(&self) -> Option<&[String]> {
+        self.filter_clients.as_deref()
     }
 
     /// # Description
     ///
     /// `-c client`
     ///
-    /// List only changes made from the named client workspace.
+    /// List only changes made from the named client workspace. This option
+    /// can be repeated to filter for multiple clients.
     pub fn set_client(&mut self, v: impl Into<String>) -> &mut Self {
-        self.client = Some(v.into());
+        self.filter_clients
+            .get_or_insert_with(Vec::new)
+            .push(v.into());
         self
     }
 
@@ -234,9 +328,12 @@ impl Changes {
     ///
     /// `-c client`
     ///
-    /// List only changes made from the named client workspace.
+    /// List only changes made from the named client workspace. This option
+    /// can be repeated to filter for multiple clients.
     pub fn client(mut self, v: impl Into<String>) -> Self {
-        self.client = Some(v.into());
+        self.filter_clients
+            .get_or_insert_with(Vec::new)
+            .push(v.into());
         self
     }
 
@@ -280,8 +377,8 @@ impl Changes {
     /// `-f`
     ///
     /// View restricted changes (requires admin permission).
-    pub fn get_restricted(&self) -> bool {
-        self.restricted
+    pub fn get_include_restricted(&self) -> bool {
+        self.include_restricted
     }
 
     /// # Description
@@ -289,8 +386,8 @@ impl Changes {
     /// `-f`
     ///
     /// View restricted changes (requires admin permission).
-    pub fn set_restricted(&mut self, v: bool) -> &mut Self {
-        self.restricted = v;
+    pub fn set_include_restricted(&mut self, v: bool) -> &mut Self {
+        self.include_restricted = v;
         self
     }
 
@@ -299,8 +396,8 @@ impl Changes {
     /// `-f`
     ///
     /// View restricted changes (requires admin permission).
-    pub fn restricted(mut self, v: bool) -> Self {
-        self.restricted = v;
+    pub fn include_restricted(mut self, v: bool) -> Self {
+        self.include_restricted = v;
         self
     }
 
@@ -310,8 +407,8 @@ impl Changes {
     ///
     /// Include changelists that affected files that were integrated with the
     /// specified files.
-    pub fn get_integrated(&self) -> bool {
-        self.integrated
+    pub fn get_include_integrated(&self) -> bool {
+        self.include_integrated
     }
 
     /// # Description
@@ -320,8 +417,8 @@ impl Changes {
     ///
     /// Include changelists that affected files that were integrated with the
     /// specified files.
-    pub fn set_integrated(&mut self, v: bool) -> &mut Self {
-        self.integrated = v;
+    pub fn set_include_integrated(&mut self, v: bool) -> &mut Self {
+        self.include_integrated = v;
         self
     }
 
@@ -331,62 +428,8 @@ impl Changes {
     ///
     /// Include changelists that affected files that were integrated with the
     /// specified files.
-    pub fn integrated(mut self, v: bool) -> Self {
-        self.integrated = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// `-l` / `-L`
-    ///
-    /// Control how much of each changelist description is shown. By default
-    /// only the first 31 characters are shown. [`LongOutput::Default`] shows
-    /// the full text (`-l`), while [`LongOutput::Truncated`] truncates at 250
-    /// characters (`-L`).
-    pub fn get_long_output(&self) -> Option<LongOutput> {
-        self.long_output
-    }
-
-    /// # Description
-    ///
-    /// `-l`
-    ///
-    /// List long output, with the full text of each changelist description.
-    pub fn set_long_output_full(&mut self) -> &mut Self {
-        self.long_output = Some(LongOutput::Default);
-        self
-    }
-
-    /// # Description
-    ///
-    /// `-l`
-    ///
-    /// List long output, with the full text of each changelist description.
-    pub fn long_output_full(mut self) -> Self {
-        self.long_output = Some(LongOutput::Default);
-        self
-    }
-
-    /// # Description
-    ///
-    /// `-L`
-    ///
-    /// List long output, with the full text of each changelist description
-    /// truncated at 250 characters.
-    pub fn set_long_output_truncated(&mut self) -> &mut Self {
-        self.long_output = Some(LongOutput::Truncated);
-        self
-    }
-
-    /// # Description
-    ///
-    /// `-L`
-    ///
-    /// List long output, with the full text of each changelist description
-    /// truncated at 250 characters.
-    pub fn long_output_truncated(mut self) -> Self {
-        self.long_output = Some(LongOutput::Truncated);
+    pub fn include_integrated(mut self, v: bool) -> Self {
+        self.include_integrated = v;
         self
     }
 
@@ -426,8 +469,8 @@ impl Changes {
     /// Reverse the order of the list, earliest first instead of most recent
     /// first.
     #[cfg(not(feature = "lt2017_2"))]
-    pub fn get_reverse(&self) -> bool {
-        self.reverse
+    pub fn get_reverse_order(&self) -> bool {
+        self.reverse_order
     }
 
     /// # Description
@@ -437,8 +480,8 @@ impl Changes {
     /// Reverse the order of the list, earliest first instead of most recent
     /// first.
     #[cfg(not(feature = "lt2017_2"))]
-    pub fn set_reverse(&mut self, v: bool) -> &mut Self {
-        self.reverse = v;
+    pub fn set_reverse_order(&mut self, v: bool) -> &mut Self {
+        self.reverse_order = v;
         self
     }
 
@@ -449,8 +492,8 @@ impl Changes {
     /// Reverse the order of the list, earliest first instead of most recent
     /// first.
     #[cfg(not(feature = "lt2017_2"))]
-    pub fn reverse(mut self, v: bool) -> Self {
-        self.reverse = v;
+    pub fn reverse_order(mut self, v: bool) -> Self {
+        self.reverse_order = v;
         self
     }
 
@@ -461,7 +504,7 @@ impl Changes {
     /// Limit the list to the changelists with the specified status:
     /// `pending`, `submitted`, or `shelved`.
     pub fn get_status(&self) -> Option<Status> {
-        self.status
+        self.filter_status
     }
 
     /// # Description
@@ -471,7 +514,7 @@ impl Changes {
     /// Limit the list to the changelists with the specified status:
     /// `pending`, `submitted`, or `shelved`.
     pub fn set_status(&mut self, v: Status) -> &mut Self {
-        self.status = Some(v);
+        self.filter_status = Some(v);
         self
     }
 
@@ -482,7 +525,7 @@ impl Changes {
     /// Limit the list to the changelists with the specified status:
     /// `pending`, `submitted`, or `shelved`.
     pub fn status(mut self, v: Status) -> Self {
-        self.status = Some(v);
+        self.filter_status = Some(v);
         self
     }
 
@@ -491,8 +534,8 @@ impl Changes {
     /// `-t`
     ///
     /// Display the time as well as the date of each change.
-    pub fn get_time(&self) -> bool {
-        self.time
+    pub fn get_include_time(&self) -> bool {
+        self.include_time
     }
 
     /// # Description
@@ -500,8 +543,8 @@ impl Changes {
     /// `-t`
     ///
     /// Display the time as well as the date of each change.
-    pub fn set_time(&mut self, v: bool) -> &mut Self {
-        self.time = v;
+    pub fn set_include_time(&mut self, v: bool) -> &mut Self {
+        self.include_time = v;
         self
     }
 
@@ -510,8 +553,8 @@ impl Changes {
     /// `-t`
     ///
     /// Display the time as well as the date of each change.
-    pub fn time(mut self, v: bool) -> Self {
-        self.time = v;
+    pub fn include_time(mut self, v: bool) -> Self {
+        self.include_time = v;
         self
     }
 
@@ -521,17 +564,21 @@ impl Changes {
     ///
     /// List only changes made from the named user, or, with
     /// [`User::Me`], the current user (equivalent to `-u $P4USER`).
-    pub fn get_user(&self) -> Option<&User> {
-        self.user.as_ref()
+    /// This option can be repeated to filter for multiple users.
+    pub fn get_users(&self) -> Option<&[User]> {
+        self.filter_users.as_deref()
     }
 
     /// # Description
     ///
     /// `-u user`
     ///
-    /// List only changes made from the named user.
+    /// List only changes made from the named user. This option can be
+    /// repeated to filter for multiple users.
     pub fn set_user_name(&mut self, v: impl Into<String>) -> &mut Self {
-        self.user = Some(User::User(v.into()));
+        self.filter_users
+            .get_or_insert_with(Vec::new)
+            .push(User::User(v.into()));
         self
     }
 
@@ -539,9 +586,12 @@ impl Changes {
     ///
     /// `-u user`
     ///
-    /// List only changes made from the named user.
+    /// List only changes made from the named user. This option can be
+    /// repeated to filter for multiple users.
     pub fn user_name(mut self, v: impl Into<String>) -> Self {
-        self.user = Some(User::User(v.into()));
+        self.filter_users
+            .get_or_insert_with(Vec::new)
+            .push(User::User(v.into()));
         self
     }
 
@@ -552,7 +602,9 @@ impl Changes {
     /// Equivalent to `-u $P4USER`.
     #[cfg(not(feature = "lt2016_1"))]
     pub fn set_me(&mut self) -> &mut Self {
-        self.user = Some(User::Me);
+        self.filter_users
+            .get_or_insert_with(Vec::new)
+            .push(User::Me);
         self
     }
 
@@ -563,7 +615,44 @@ impl Changes {
     /// Equivalent to `-u $P4USER`.
     #[cfg(not(feature = "lt2016_1"))]
     pub fn me(mut self) -> Self {
-        self.user = Some(User::Me);
+        self.filter_users
+            .get_or_insert_with(Vec::new)
+            .push(User::Me);
+        self
+    }
+
+    /// # Description
+    ///
+    /// `--client-case-insensitive`
+    ///
+    /// Makes the `-c client` search pattern case-insensitive, even on a
+    /// case-sensitive server.
+    #[cfg(not(feature = "lt2025_1"))]
+    pub fn get_client_case_insensitive(&self) -> bool {
+        self.client_case_insensitive
+    }
+
+    /// # Description
+    ///
+    /// `--client-case-insensitive`
+    ///
+    /// Makes the `-c client` search pattern case-insensitive, even on a
+    /// case-sensitive server.
+    #[cfg(not(feature = "lt2025_1"))]
+    pub fn set_client_case_insensitive(&mut self, v: bool) -> &mut Self {
+        self.client_case_insensitive = v;
+        self
+    }
+
+    /// # Description
+    ///
+    /// `--client-case-insensitive`
+    ///
+    /// Makes the `-c client` search pattern case-insensitive, even on a
+    /// case-sensitive server.
+    #[cfg(not(feature = "lt2025_1"))]
+    pub fn client_case_insensitive(mut self, v: bool) -> Self {
+        self.client_case_insensitive = v;
         self
     }
 
@@ -606,49 +695,55 @@ impl Changes {
     }
 }
 
-impl SubCommand for Changes {
+impl<L: ExclusiveOption> SubCommand for Changes<L> {
     fn name(&self) -> &str {
         "changes"
     }
 
     fn inject_local_args(&self, command: &mut std::process::Command) {
-        if let Some(ref client) = self.client {
-            command.arg("-c").arg(client);
+        if let Some(ref clients) = self.filter_clients {
+            for client in clients {
+                command.arg("-c").arg(client);
+            }
+        }
+        #[cfg(not(feature = "lt2025_1"))]
+        if self.client_case_insensitive {
+            command.arg("--client-case-insensitive");
         }
         #[cfg(not(feature = "lt2015_2"))]
         if let Some(ref min_change) = self.min_change_list {
             command.arg("-e").arg(min_change);
         }
-        if self.restricted {
+        if self.include_restricted {
             command.arg("-f");
         }
-        if self.integrated {
+        if self.include_integrated {
             command.arg("-i");
         }
-        if let Some(long_output) = self.long_output {
-            command.arg(long_output.as_str());
-        }
+        self.long_output.inject_args(command);
         if let Some(max) = self.limit {
             command.arg("-m").arg(max.to_string());
         }
         #[cfg(not(feature = "lt2017_2"))]
-        if self.reverse {
+        if self.reverse_order {
             command.arg("-r");
         }
-        if let Some(status) = self.status {
+        if let Some(status) = self.filter_status {
             command.arg("-s").arg(status.as_str());
         }
-        if self.time {
+        if self.include_time {
             command.arg("-t");
         }
-        if let Some(ref user) = self.user {
-            match user {
-                User::User(name) => {
-                    command.arg("-u").arg(name);
-                }
-                #[cfg(not(feature = "lt2016_1"))]
-                User::Me => {
-                    command.arg("--me");
+        if let Some(ref users) = self.filter_users {
+            for user in users {
+                match user {
+                    User::User(name) => {
+                        command.arg("-u").arg(name);
+                    }
+                    #[cfg(not(feature = "lt2016_1"))]
+                    User::Me => {
+                        command.arg("--me");
+                    }
                 }
             }
         }
@@ -694,6 +789,18 @@ mod tests {
         assert_eq!(args_of(&cmd), vec!["changes", "-c", "eds_elm"]);
     }
 
+    #[test]
+    fn multiple_clients() {
+        let changes = Changes::new("p4", GlobalOpts::default())
+            .client("eds_elm")
+            .client("build_ws");
+        let cmd = changes.setup_command("p4");
+        assert_eq!(
+            args_of(&cmd),
+            vec!["changes", "-c", "eds_elm", "-c", "build_ws"]
+        );
+    }
+
     #[cfg(not(feature = "lt2015_2"))]
     #[test]
     fn min_change_list() {
@@ -703,21 +810,21 @@ mod tests {
     }
 
     #[test]
-    fn restricted() {
-        let changes = Changes::new("p4", GlobalOpts::default()).restricted(true);
+    fn include_restricted() {
+        let changes = Changes::new("p4", GlobalOpts::default()).include_restricted(true);
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "-f"]);
     }
 
     #[test]
-    fn integrated() {
-        let changes = Changes::new("p4", GlobalOpts::default()).integrated(true);
+    fn include_integrated() {
+        let changes = Changes::new("p4", GlobalOpts::default()).include_integrated(true);
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "-i"]);
     }
 
     #[test]
-    fn long_output_default() {
+    fn long_output_full() {
         let changes = Changes::new("p4", GlobalOpts::default()).long_output_full();
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "-l"]);
@@ -739,8 +846,8 @@ mod tests {
 
     #[cfg(not(feature = "lt2017_2"))]
     #[test]
-    fn reverse() {
-        let changes = Changes::new("p4", GlobalOpts::default()).reverse(true);
+    fn reverse_order() {
+        let changes = Changes::new("p4", GlobalOpts::default()).reverse_order(true);
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "-r"]);
     }
@@ -767,8 +874,8 @@ mod tests {
     }
 
     #[test]
-    fn time() {
-        let changes = Changes::new("p4", GlobalOpts::default()).time(true);
+    fn include_time() {
+        let changes = Changes::new("p4", GlobalOpts::default()).include_time(true);
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "-t"]);
     }
@@ -780,12 +887,44 @@ mod tests {
         assert_eq!(args_of(&cmd), vec!["changes", "-u", "edk"]);
     }
 
+    #[test]
+    fn multiple_users() {
+        let changes = Changes::new("p4", GlobalOpts::default())
+            .user_name("maria")
+            .user_name("edk");
+        let cmd = changes.setup_command("p4");
+        assert_eq!(args_of(&cmd), vec!["changes", "-u", "maria", "-u", "edk"]);
+    }
+
     #[cfg(not(feature = "lt2016_1"))]
     #[test]
     fn user_me() {
         let changes = Changes::new("p4", GlobalOpts::default()).me();
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "--me"]);
+    }
+
+    #[cfg(not(feature = "lt2016_1"))]
+    #[test]
+    fn multiple_users_with_me() {
+        let changes = Changes::new("p4", GlobalOpts::default())
+            .user_name("maria")
+            .me();
+        let cmd = changes.setup_command("p4");
+        assert_eq!(args_of(&cmd), vec!["changes", "-u", "maria", "--me"]);
+    }
+
+    #[cfg(not(feature = "lt2025_1"))]
+    #[test]
+    fn client_case_insensitive() {
+        let changes = Changes::new("p4", GlobalOpts::default())
+            .client("eds_elm")
+            .client_case_insensitive(true);
+        let cmd = changes.setup_command("p4");
+        assert_eq!(
+            args_of(&cmd),
+            vec!["changes", "-c", "eds_elm", "--client-case-insensitive"]
+        );
     }
 
     #[cfg(not(feature = "lt2022_2"))]
@@ -808,17 +947,17 @@ mod tests {
     fn all_options_order() {
         let changes = Changes::new("p4", GlobalOpts::default())
             .client("eds_elm")
-            .restricted(true)
-            .integrated(true)
+            .include_restricted(true)
+            .include_integrated(true)
             .long_output_full()
             .limit(5)
             .status(Status::Submitted)
-            .time(true)
+            .include_time(true)
             .user_name("edk");
         #[cfg(not(feature = "lt2015_2"))]
         let changes = changes.min_change_list("800");
         #[cfg(not(feature = "lt2017_2"))]
-        let changes = changes.reverse(true);
+        let changes = changes.reverse_order(true);
         #[cfg(not(feature = "lt2022_2"))]
         let changes = changes.stream(Some(true));
         let cmd = changes.setup_command("p4");
@@ -832,5 +971,15 @@ mod tests {
         #[cfg(not(feature = "lt2022_2"))]
         expected.push("--stream");
         assert_eq!(args_of(&cmd), expected);
+    }
+
+    #[test]
+    fn long_output_full_preserves_other_options() {
+        let changes = Changes::new("p4", GlobalOpts::default())
+            .include_restricted(true)
+            .include_time(true)
+            .long_output_full();
+        let cmd = changes.setup_command("p4");
+        assert_eq!(args_of(&cmd), vec!["changes", "-f", "-l", "-t"]);
     }
 }
