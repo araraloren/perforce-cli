@@ -1,40 +1,94 @@
 use std::{
     ffi::OsStr,
     path::PathBuf,
-    process::{Child, Output, Stdio},
+    process::{Child, Command, Output, Stdio},
 };
 
 use crate::{
-    cmd::{LongOutput, SubCommand},
+    cmd::{ExclusiveOption, SubCommand, Unselected},
     global::GlobalOpts,
 };
 
+/// Full description output of `p4 filelog` (`-l`): list long output, with
+/// the full text of each changelist description.
+///
+/// Entered with [`FileLog::full_description`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FullDescription;
+
+impl ExclusiveOption for FullDescription {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-l");
+    }
+}
+
+/// Truncated description output of `p4 filelog` (`-L`): list long output,
+/// with the full text of each changelist description truncated at 250
+/// characters.
+///
+/// Entered with [`FileLog::truncated_description`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct TruncatedDescription;
+
+impl ExclusiveOption for TruncatedDescription {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-L");
+    }
+}
+
+/// Content history mode of `p4 filelog` (`-h`): display file content
+/// history instead of file name history.
+///
+/// This is the only state in which the `-p` option
+/// ([`skip_promoted_tasks`](FileLog::get_skip_promoted_tasks)) is
+/// meaningful. Entered with [`FileLog::content_history`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct DisplayContentHistory {
+    skip_promoted_tasks: bool,
+}
+
+impl ExclusiveOption for DisplayContentHistory {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-h");
+
+        if self.skip_promoted_tasks {
+            command.arg("-p");
+        }
+    }
+}
+
 ///
 /// Print detailed information about the revisions of files.
+///
+/// The `L` type parameter tracks the changelist description output at
+/// compile time: [`Self::full_description`] transitions to the
+/// [`FullDescription`] state and [`Self::truncated_description`]
+/// transitions to the [`TruncatedDescription`] state. The `H` type
+/// parameter tracks whether file content history is displayed:
+/// [`Self::content_history`] transitions to the [`DisplayContentHistory`]
+/// state.
 #[derive(Debug, Clone, Default)]
-pub struct FileLog {
+pub struct FileLog<L = Unselected, H = Unselected> {
     bin: PathBuf,
 
     global_opts: GlobalOpts,
 
     changelist: Option<String>,
 
-    content_history: bool,
+    content_history: H,
 
     follow_branches: bool,
 
-    long_output: Option<LongOutput>,
+    long_output: L,
 
     limit: Option<u64>,
 
-    skip_promoted: bool,
+    ignore_non_contributory: bool,
 
-    shortened: bool,
-
-    time: bool,
+    include_time: bool,
 }
 
-impl FileLog {
+impl FileLog<Unselected, Unselected> {
     /// Creates a new `p4 filelog` command.
     ///
     /// `bin` is the path to the Perforce command-line executable.
@@ -42,10 +96,89 @@ impl FileLog {
         Self {
             bin: bin.into(),
             global_opts,
-            ..Self::default()
+            changelist: None,
+            content_history: Unselected,
+            follow_branches: false,
+            long_output: Unselected,
+            limit: None,
+            ignore_non_contributory: false,
+            include_time: false,
+        }
+    }
+}
+
+impl<H: ExclusiveOption> FileLog<Unselected, H> {
+    /// # Description
+    ///
+    /// -l
+    ///
+    /// List long output, with the full text of each changelist description.
+    ///
+    /// Transitions this command to the [`FullDescription`] state.
+    pub fn full_description(self) -> FileLog<FullDescription, H> {
+        FileLog {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            changelist: self.changelist,
+            content_history: self.content_history,
+            follow_branches: self.follow_branches,
+            long_output: FullDescription,
+            limit: self.limit,
+            ignore_non_contributory: self.ignore_non_contributory,
+            include_time: self.include_time,
         }
     }
 
+    /// # Description
+    ///
+    /// -L
+    ///
+    /// List long output, with the full text of each changelist description
+    /// truncated at 250 characters.
+    ///
+    /// Transitions this command to the [`TruncatedDescription`] state.
+    pub fn truncated_description(self) -> FileLog<TruncatedDescription, H> {
+        FileLog {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            changelist: self.changelist,
+            content_history: self.content_history,
+            follow_branches: self.follow_branches,
+            long_output: TruncatedDescription,
+            limit: self.limit,
+            ignore_non_contributory: self.ignore_non_contributory,
+            include_time: self.include_time,
+        }
+    }
+}
+
+impl<L: ExclusiveOption> FileLog<L, Unselected> {
+    /// # Description
+    ///
+    /// -h
+    ///
+    /// Display file content history instead of file name history.
+    ///
+    /// Transitions this command to the [`DisplayContentHistory`] state,
+    /// which unlocks the `-p` option.
+    pub fn content_history(self) -> FileLog<L, DisplayContentHistory> {
+        FileLog {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            changelist: self.changelist,
+            content_history: DisplayContentHistory {
+                skip_promoted_tasks: false,
+            },
+            follow_branches: self.follow_branches,
+            long_output: self.long_output,
+            limit: self.limit,
+            ignore_non_contributory: self.ignore_non_contributory,
+            include_time: self.include_time,
+        }
+    }
+}
+
+impl<L: ExclusiveOption, H: ExclusiveOption> FileLog<L, H> {
     /// Runs `p4 filelog` for the given files, inheriting the parent process's
     /// standard streams.
     ///
@@ -177,35 +310,6 @@ impl FileLog {
 
     /// # Description
     ///
-    /// `-h`
-    ///
-    /// Display file content history instead of file name history.
-    pub fn get_content_history(&self) -> bool {
-        self.content_history
-    }
-
-    /// # Description
-    ///
-    /// `-h`
-    ///
-    /// Display file content history instead of file name history.
-    pub fn set_content_history(&mut self, v: bool) -> &mut Self {
-        self.content_history = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// `-h`
-    ///
-    /// Display file content history instead of file name history.
-    pub fn content_history(mut self, v: bool) -> Self {
-        self.content_history = v;
-        self
-    }
-
-    /// # Description
-    ///
     /// `-i`
     ///
     /// Follow file history across branches.
@@ -230,60 +334,6 @@ impl FileLog {
     /// Follow file history across branches.
     pub fn follow_branches(mut self, v: bool) -> Self {
         self.follow_branches = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// `-l` / `-L`
-    ///
-    /// Control how much of each changelist description is shown. By default
-    /// only the first 30 characters are shown. [`LongOutput::Default`] shows
-    /// the full text (`-l`), while [`LongOutput::Truncated`] truncates at 250
-    /// characters (`-L`).
-    pub fn get_long_output(&self) -> Option<LongOutput> {
-        self.long_output
-    }
-
-    /// # Description
-    ///
-    /// `-l`
-    ///
-    /// List long output, with the full text of each changelist description.
-    pub fn set_long_output_full(&mut self) -> &mut Self {
-        self.long_output = Some(LongOutput::Default);
-        self
-    }
-
-    /// # Description
-    ///
-    /// `-l`
-    ///
-    /// List long output, with the full text of each changelist description.
-    pub fn long_output_full(mut self) -> Self {
-        self.long_output = Some(LongOutput::Default);
-        self
-    }
-
-    /// # Description
-    ///
-    /// `-L`
-    ///
-    /// List long output, with the full text of each changelist description
-    /// truncated at 250 characters.
-    pub fn set_long_output_truncated(&mut self) -> &mut Self {
-        self.long_output = Some(LongOutput::Truncated);
-        self
-    }
-
-    /// # Description
-    ///
-    /// `-L`
-    ///
-    /// List long output, with the full text of each changelist description
-    /// truncated at 250 characters.
-    pub fn long_output_truncated(mut self) -> Self {
-        self.long_output = Some(LongOutput::Truncated);
         self
     }
 
@@ -318,33 +368,22 @@ impl FileLog {
 
     /// # Description
     ///
-    /// `-p`
+    /// `-s`
     ///
-    /// When used with the `-h` option, do not follow content of promoted task
-    /// streams.
-    pub fn get_skip_promoted(&self) -> bool {
-        self.skip_promoted
+    /// Display a shortened form of output by ignoring non-contributory
+    /// integrations.
+    pub fn get_ignore_non_contributory(&self) -> bool {
+        self.ignore_non_contributory
     }
 
     /// # Description
     ///
-    /// `-p`
+    /// `-s`
     ///
-    /// When used with the `-h` option, do not follow content of promoted task
-    /// streams.
-    pub fn set_skip_promoted(&mut self, v: bool) -> &mut Self {
-        self.skip_promoted = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// `-p`
-    ///
-    /// When used with the `-h` option, do not follow content of promoted task
-    /// streams.
-    pub fn skip_promoted(mut self, v: bool) -> Self {
-        self.skip_promoted = v;
+    /// Display a shortened form of output by ignoring non-contributory
+    /// integrations.
+    pub fn set_ignore_non_contributory(&mut self, v: bool) -> &mut Self {
+        self.ignore_non_contributory = v;
         self
     }
 
@@ -354,29 +393,8 @@ impl FileLog {
     ///
     /// Display a shortened form of output by ignoring non-contributory
     /// integrations.
-    pub fn get_shortened(&self) -> bool {
-        self.shortened
-    }
-
-    /// # Description
-    ///
-    /// `-s`
-    ///
-    /// Display a shortened form of output by ignoring non-contributory
-    /// integrations.
-    pub fn set_shortened(&mut self, v: bool) -> &mut Self {
-        self.shortened = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// `-s`
-    ///
-    /// Display a shortened form of output by ignoring non-contributory
-    /// integrations.
-    pub fn shortened(mut self, v: bool) -> Self {
-        self.shortened = v;
+    pub fn ignore_non_contributory(mut self, v: bool) -> Self {
+        self.ignore_non_contributory = v;
         self
     }
 
@@ -385,8 +403,8 @@ impl FileLog {
     /// `-t`
     ///
     /// Display the time as well as the date.
-    pub fn get_time(&self) -> bool {
-        self.time
+    pub fn get_include_time(&self) -> bool {
+        self.include_time
     }
 
     /// # Description
@@ -394,8 +412,8 @@ impl FileLog {
     /// `-t`
     ///
     /// Display the time as well as the date.
-    pub fn set_time(&mut self, v: bool) -> &mut Self {
-        self.time = v;
+    pub fn set_include_time(&mut self, v: bool) -> &mut Self {
+        self.include_time = v;
         self
     }
 
@@ -404,40 +422,73 @@ impl FileLog {
     /// `-t`
     ///
     /// Display the time as well as the date.
-    pub fn time(mut self, v: bool) -> Self {
-        self.time = v;
+    pub fn include_time(mut self, v: bool) -> Self {
+        self.include_time = v;
         self
     }
 }
 
-impl SubCommand for FileLog {
+impl<L: ExclusiveOption> FileLog<L, DisplayContentHistory> {
+    /// # Description
+    ///
+    /// -p
+    ///
+    /// When used with the `-h` option, do not follow content of promoted task
+    /// streams.
+    pub fn get_skip_promoted_tasks(&self) -> bool {
+        self.content_history.skip_promoted_tasks
+    }
+
+    /// # Description
+    ///
+    /// -p
+    ///
+    /// When used with the `-h` option, do not follow content of promoted task
+    /// streams.
+    pub fn set_skip_promoted_tasks(&mut self, v: bool) -> &mut Self {
+        self.content_history.skip_promoted_tasks = v;
+        self
+    }
+
+    /// # Description
+    ///
+    /// -p
+    ///
+    /// When used with the `-h` option, do not follow content of promoted task
+    /// streams.
+    pub fn skip_promoted_tasks(mut self, v: bool) -> Self {
+        self.content_history.skip_promoted_tasks = v;
+        self
+    }
+}
+
+impl<L: ExclusiveOption, H: ExclusiveOption> SubCommand for FileLog<L, H> {
     fn name(&self) -> &str {
         "filelog"
     }
 
-    fn inject_local_args(&self, command: &mut std::process::Command) {
-        if let Some(ref changelist) = self.changelist {
+    fn inject_local_args(&self, command: &mut Command) {
+        if let Some(changelist) = &self.changelist {
             command.arg("-c").arg(changelist);
         }
-        if self.content_history {
-            command.arg("-h");
-        }
+
+        self.content_history.inject_args(command);
+
         if self.follow_branches {
             command.arg("-i");
         }
-        if let Some(long_output) = self.long_output {
-            command.arg(long_output.as_str());
-        }
+
+        self.long_output.inject_args(command);
+
         if let Some(max) = self.limit {
             command.arg("-m").arg(max.to_string());
         }
-        if self.skip_promoted {
-            command.arg("-p");
-        }
-        if self.shortened {
+
+        if self.ignore_non_contributory {
             command.arg("-s");
         }
-        if self.time {
+
+        if self.include_time {
             command.arg("-t");
         }
     }
@@ -469,7 +520,7 @@ mod tests {
 
     #[test]
     fn content_history() {
-        let filelog = FileLog::new("p4", GlobalOpts::default()).content_history(true);
+        let filelog = FileLog::new("p4", GlobalOpts::default()).content_history();
         let cmd = filelog.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["filelog", "-h"]);
     }
@@ -482,15 +533,15 @@ mod tests {
     }
 
     #[test]
-    fn long_output_full() {
-        let filelog = FileLog::new("p4", GlobalOpts::default()).long_output_full();
+    fn full_description() {
+        let filelog = FileLog::new("p4", GlobalOpts::default()).full_description();
         let cmd = filelog.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["filelog", "-l"]);
     }
 
     #[test]
-    fn long_output_truncated() {
-        let filelog = FileLog::new("p4", GlobalOpts::default()).long_output_truncated();
+    fn truncated_description() {
+        let filelog = FileLog::new("p4", GlobalOpts::default()).truncated_description();
         let cmd = filelog.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["filelog", "-L"]);
     }
@@ -503,22 +554,38 @@ mod tests {
     }
 
     #[test]
-    fn skip_promoted() {
-        let filelog = FileLog::new("p4", GlobalOpts::default()).skip_promoted(true);
+    fn skip_promoted_tasks() {
+        let filelog = FileLog::new("p4", GlobalOpts::default())
+            .content_history()
+            .skip_promoted_tasks(true);
         let cmd = filelog.setup_command("p4");
-        assert_eq!(args_of(&cmd), vec!["filelog", "-p"]);
+        assert_eq!(args_of(&cmd), vec!["filelog", "-h", "-p"]);
     }
 
     #[test]
-    fn shortened() {
-        let filelog = FileLog::new("p4", GlobalOpts::default()).shortened(true);
+    fn skip_promoted_tasks_accessors() {
+        let mut filelog = FileLog::new("p4", GlobalOpts::default())
+            .full_description()
+            .content_history();
+        filelog.set_skip_promoted_tasks(true);
+
+        assert!(filelog.get_skip_promoted_tasks());
+        assert_eq!(
+            args_of(&filelog.setup_command("p4")),
+            ["filelog", "-h", "-p", "-l"]
+        );
+    }
+
+    #[test]
+    fn ignore_non_contributory() {
+        let filelog = FileLog::new("p4", GlobalOpts::default()).ignore_non_contributory(true);
         let cmd = filelog.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["filelog", "-s"]);
     }
 
     #[test]
-    fn time() {
-        let filelog = FileLog::new("p4", GlobalOpts::default()).time(true);
+    fn include_time() {
+        let filelog = FileLog::new("p4", GlobalOpts::default()).include_time(true);
         let cmd = filelog.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["filelog", "-t"]);
     }
@@ -527,18 +594,18 @@ mod tests {
     fn all_options_order() {
         let filelog = FileLog::new("p4", GlobalOpts::default())
             .changelist("100")
-            .content_history(true)
+            .content_history()
             .follow_branches(true)
-            .long_output_full()
+            .full_description()
             .limit(5)
-            .skip_promoted(true)
-            .shortened(true)
-            .time(true);
+            .skip_promoted_tasks(true)
+            .ignore_non_contributory(true)
+            .include_time(true);
         let cmd = filelog.setup_command("p4");
         assert_eq!(
             args_of(&cmd),
             vec![
-                "filelog", "-c", "100", "-h", "-i", "-l", "-m", "5", "-p", "-s", "-t",
+                "filelog", "-c", "100", "-h", "-p", "-i", "-l", "-m", "5", "-s", "-t",
             ]
         );
     }
