@@ -307,7 +307,7 @@ impl<L: ExclusiveOption> Changes<L> {
     ///
     /// List only changes made from the named client workspace. This option
     /// can be repeated to filter for multiple clients.
-    pub fn get_clients(&self) -> Option<&[String]> {
+    pub fn get_filter_clients(&self) -> Option<&[String]> {
         self.filter_clients.as_deref()
     }
 
@@ -317,7 +317,7 @@ impl<L: ExclusiveOption> Changes<L> {
     ///
     /// List only changes made from the named client workspace. This option
     /// can be repeated to filter for multiple clients.
-    pub fn set_client(&mut self, v: impl Into<String>) -> &mut Self {
+    pub fn set_filter_client(&mut self, v: impl Into<String>) -> &mut Self {
         self.filter_clients
             .get_or_insert_with(Vec::new)
             .push(v.into());
@@ -330,7 +330,7 @@ impl<L: ExclusiveOption> Changes<L> {
     ///
     /// List only changes made from the named client workspace. This option
     /// can be repeated to filter for multiple clients.
-    pub fn client(mut self, v: impl Into<String>) -> Self {
+    pub fn filter_client(mut self, v: impl Into<String>) -> Self {
         self.filter_clients
             .get_or_insert_with(Vec::new)
             .push(v.into());
@@ -565,7 +565,7 @@ impl<L: ExclusiveOption> Changes<L> {
     /// List only changes made from the named user, or, with
     /// [`User::Me`], the current user (equivalent to `-u $P4USER`).
     /// This option can be repeated to filter for multiple users.
-    pub fn get_users(&self) -> Option<&[User]> {
+    pub fn get_filter_users(&self) -> Option<&[User]> {
         self.filter_users.as_deref()
     }
 
@@ -575,7 +575,7 @@ impl<L: ExclusiveOption> Changes<L> {
     ///
     /// List only changes made from the named user. This option can be
     /// repeated to filter for multiple users.
-    pub fn set_user_name(&mut self, v: impl Into<String>) -> &mut Self {
+    pub fn set_filter_user(&mut self, v: impl Into<String>) -> &mut Self {
         self.filter_users
             .get_or_insert_with(Vec::new)
             .push(User::User(v.into()));
@@ -588,7 +588,7 @@ impl<L: ExclusiveOption> Changes<L> {
     ///
     /// List only changes made from the named user. This option can be
     /// repeated to filter for multiple users.
-    pub fn user_name(mut self, v: impl Into<String>) -> Self {
+    pub fn filter_user(mut self, v: impl Into<String>) -> Self {
         self.filter_users
             .get_or_insert_with(Vec::new)
             .push(User::User(v.into()));
@@ -601,7 +601,7 @@ impl<L: ExclusiveOption> Changes<L> {
     ///
     /// Equivalent to `-u $P4USER`.
     #[cfg(not(feature = "lt2016_1"))]
-    pub fn set_me(&mut self) -> &mut Self {
+    pub fn set_filter_me(&mut self) -> &mut Self {
         self.filter_users
             .get_or_insert_with(Vec::new)
             .push(User::Me);
@@ -614,7 +614,7 @@ impl<L: ExclusiveOption> Changes<L> {
     ///
     /// Equivalent to `-u $P4USER`.
     #[cfg(not(feature = "lt2016_1"))]
-    pub fn me(mut self) -> Self {
+    pub fn filter_me(mut self) -> Self {
         self.filter_users
             .get_or_insert_with(Vec::new)
             .push(User::Me);
@@ -660,8 +660,8 @@ impl<L: ExclusiveOption> Changes<L> {
     ///
     /// `--stream` / `--nostream`
     ///
-    /// With `Some(true)`, display only changes that contain a stream spec
-    /// (`--stream`). With `Some(false)`, display only changes that do not
+    /// With `true`, display only changes that contain a stream spec
+    /// (`--stream`). With `false`, display only changes that do not
     /// contain a stream spec (`--nostream`).
     #[cfg(not(feature = "lt2022_2"))]
     pub fn get_stream(&self) -> Option<bool> {
@@ -672,12 +672,12 @@ impl<L: ExclusiveOption> Changes<L> {
     ///
     /// `--stream` / `--nostream`
     ///
-    /// With `Some(true)`, display only changes that contain a stream spec
-    /// (`--stream`). With `Some(false)`, display only changes that do not
+    /// With `true`, display only changes that contain a stream spec
+    /// (`--stream`). With `false`, display only changes that do not
     /// contain a stream spec (`--nostream`).
     #[cfg(not(feature = "lt2022_2"))]
-    pub fn set_stream(&mut self, v: Option<bool>) -> &mut Self {
-        self.stream = v;
+    pub fn set_stream(&mut self, v: bool) -> &mut Self {
+        self.stream = Some(v);
         self
     }
 
@@ -685,12 +685,12 @@ impl<L: ExclusiveOption> Changes<L> {
     ///
     /// `--stream` / `--nostream`
     ///
-    /// With `Some(true)`, display only changes that contain a stream spec
-    /// (`--stream`). With `Some(false)`, display only changes that do not
+    /// With `true`, display only changes that contain a stream spec
+    /// (`--stream`). With `false`, display only changes that do not
     /// contain a stream spec (`--nostream`).
     #[cfg(not(feature = "lt2022_2"))]
-    pub fn stream(mut self, v: Option<bool>) -> Self {
-        self.stream = v;
+    pub fn stream(mut self, v: bool) -> Self {
+        self.stream = Some(v);
         self
     }
 }
@@ -784,7 +784,7 @@ mod tests {
 
     #[test]
     fn client() {
-        let changes = Changes::new("p4", GlobalOpts::default()).client("eds_elm");
+        let changes = Changes::new("p4", GlobalOpts::default()).filter_client("eds_elm");
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "-c", "eds_elm"]);
     }
@@ -792,8 +792,8 @@ mod tests {
     #[test]
     fn multiple_clients() {
         let changes = Changes::new("p4", GlobalOpts::default())
-            .client("eds_elm")
-            .client("build_ws");
+            .filter_client("eds_elm")
+            .filter_client("build_ws");
         let cmd = changes.setup_command("p4");
         assert_eq!(
             args_of(&cmd),
@@ -882,7 +882,7 @@ mod tests {
 
     #[test]
     fn user_name() {
-        let changes = Changes::new("p4", GlobalOpts::default()).user_name("edk");
+        let changes = Changes::new("p4", GlobalOpts::default()).filter_user("edk");
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "-u", "edk"]);
     }
@@ -890,8 +890,8 @@ mod tests {
     #[test]
     fn multiple_users() {
         let changes = Changes::new("p4", GlobalOpts::default())
-            .user_name("maria")
-            .user_name("edk");
+            .filter_user("maria")
+            .filter_user("edk");
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "-u", "maria", "-u", "edk"]);
     }
@@ -899,7 +899,7 @@ mod tests {
     #[cfg(not(feature = "lt2016_1"))]
     #[test]
     fn user_me() {
-        let changes = Changes::new("p4", GlobalOpts::default()).me();
+        let changes = Changes::new("p4", GlobalOpts::default()).filter_me();
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "--me"]);
     }
@@ -908,8 +908,8 @@ mod tests {
     #[test]
     fn multiple_users_with_me() {
         let changes = Changes::new("p4", GlobalOpts::default())
-            .user_name("maria")
-            .me();
+            .filter_user("maria")
+            .filter_me();
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "-u", "maria", "--me"]);
     }
@@ -918,7 +918,7 @@ mod tests {
     #[test]
     fn client_case_insensitive() {
         let changes = Changes::new("p4", GlobalOpts::default())
-            .client("eds_elm")
+            .filter_client("eds_elm")
             .client_case_insensitive(true);
         let cmd = changes.setup_command("p4");
         assert_eq!(
@@ -930,7 +930,7 @@ mod tests {
     #[cfg(not(feature = "lt2022_2"))]
     #[test]
     fn stream_spec() {
-        let changes = Changes::new("p4", GlobalOpts::default()).stream(Some(true));
+        let changes = Changes::new("p4", GlobalOpts::default()).stream(true);
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "--stream"]);
     }
@@ -938,7 +938,7 @@ mod tests {
     #[cfg(not(feature = "lt2022_2"))]
     #[test]
     fn no_stream_spec() {
-        let changes = Changes::new("p4", GlobalOpts::default()).stream(Some(false));
+        let changes = Changes::new("p4", GlobalOpts::default()).stream(false);
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "--nostream"]);
     }
@@ -946,20 +946,20 @@ mod tests {
     #[test]
     fn all_options_order() {
         let changes = Changes::new("p4", GlobalOpts::default())
-            .client("eds_elm")
+            .filter_client("eds_elm")
             .include_restricted(true)
             .include_integrated(true)
             .long_output_full()
             .limit(5)
             .status(Status::Submitted)
             .include_time(true)
-            .user_name("edk");
+            .filter_user("edk");
         #[cfg(not(feature = "lt2015_2"))]
         let changes = changes.min_change_list("800");
         #[cfg(not(feature = "lt2017_2"))]
         let changes = changes.reverse_order(true);
         #[cfg(not(feature = "lt2022_2"))]
-        let changes = changes.stream(Some(true));
+        let changes = changes.stream(true);
         let cmd = changes.setup_command("p4");
         let mut expected = vec!["changes", "-c", "eds_elm"];
         #[cfg(not(feature = "lt2015_2"))]
