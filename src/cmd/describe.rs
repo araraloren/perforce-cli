@@ -4,7 +4,48 @@ use std::{
     process::{Child, Command, Output, Stdio},
 };
 
-use crate::{cmd::SubCommand, global::GlobalOpts};
+use crate::{
+    cmd::{ExclusiveOption, SubCommand, Unselected},
+    global::GlobalOpts,
+};
+
+/// Short summary output of `p4 describe` (`-s`): display a shortened output
+/// that excludes the files' diffs.
+///
+/// Entered with [`Describe::short_summary_output`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ShortSummaryMode;
+
+impl ExclusiveOption for ShortSummaryMode {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-s");
+    }
+}
+
+/// Detail diff output of `p4 describe` (`-a` and `-d`).
+///
+/// Entered with [`Describe::display_added_text_content`] or
+/// [`Describe::diff_options`].
+#[derive(Debug, Clone, Default)]
+pub struct DetailDiffMode {
+    diff_options: Option<String>,
+
+    #[cfg(not(feature = "lt2017_2"))]
+    display_added_text_content: bool,
+}
+
+impl ExclusiveOption for DetailDiffMode {
+    fn inject_args(&self, command: &mut Command) {
+        #[cfg(not(feature = "lt2017_2"))]
+        if self.display_added_text_content {
+            command.arg("-a");
+        }
+
+        if let Some(diff_options) = &self.diff_options {
+            command.arg(format!("-d{diff_options}"));
+        }
+    }
+}
 
 #[cfg_attr(
     feature = "lt2014_2",
@@ -56,16 +97,17 @@ use crate::{cmd::SubCommand, global::GlobalOpts};
     doc = "If the depot is of type `graph`, displays a commit description. See",
     doc = "the command-line help for `p4 help-graph describe`."
 )]
+///
+/// The `M` type parameter tracks the output mode at compile time. The
+/// default [`Unselected`] state offers neither `-s` nor `-a`/`-d`;
+/// [`Self::short_summary_output`] transitions to the [`ShortSummaryMode`]
+/// state, while [`Self::display_added_text_content`] and
+/// [`Self::diff_options`] transition to the [`DetailDiffMode`] state.
 #[derive(Debug, Clone, Default)]
-pub struct Describe {
+pub struct Describe<M = Unselected> {
     bin: PathBuf,
 
     global_opts: GlobalOpts,
-
-    #[cfg(not(feature = "lt2017_2"))]
-    text_only: bool,
-
-    diff_options: Option<String>,
 
     force_restricted: bool,
 
@@ -75,67 +117,14 @@ pub struct Describe {
     #[cfg(not(feature = "lt2017_1"))]
     limit: Option<u64>,
 
-    original: bool,
-
-    short_output: bool,
+    use_original_number: bool,
 
     include_shelved_files: bool,
+
+    mode: M,
 }
 
-impl SubCommand for Describe {
-    fn name(&self) -> &str {
-        "describe"
-    }
-
-    fn inject_local_args(&self, command: &mut Command) {
-        #[cfg(not(feature = "lt2017_2"))]
-        {
-            if self.text_only {
-                command.arg("-a");
-            }
-        }
-
-        if let Some(diff_options) = &self.diff_options {
-            command.arg(format!("-d{diff_options}"));
-        }
-
-        if self.force_restricted {
-            command.arg("-f");
-        }
-
-        #[cfg(not(feature = "lt2015_2"))]
-        {
-            if self.use_identity {
-                command.arg("-I");
-            }
-        }
-
-        #[cfg(not(feature = "lt2017_1"))]
-        {
-            if let Some(max) = self.limit {
-                command.arg("-m").arg(max.to_string());
-            }
-        }
-
-        if self.original {
-            command.arg("-O");
-        }
-
-        if self.short_output {
-            command.arg("-s");
-        }
-
-        if self.include_shelved_files {
-            command.arg("-S");
-        }
-    }
-
-    fn global_opts(&self) -> Option<&GlobalOpts> {
-        Some(&self.global_opts)
-    }
-}
-
-impl Describe {
+impl Describe<Unselected> {
     /// Creates a new `p4 describe` command.
     ///
     /// `bin` is the path to the Perforce command-line executable.
@@ -143,10 +132,117 @@ impl Describe {
         Self {
             bin: bin.into(),
             global_opts,
-            ..Default::default()
+            force_restricted: false,
+            #[cfg(not(feature = "lt2015_2"))]
+            use_identity: false,
+            #[cfg(not(feature = "lt2017_1"))]
+            limit: None,
+            use_original_number: false,
+            include_shelved_files: false,
+            mode: Unselected,
         }
     }
 
+    /// # Description
+    ///
+    /// -s
+    ///
+    /// Display a shortened output that excludes
+    #[cfg_attr(feature = "lt2017_1", doc = "the files' diffs.")]
+    #[cfg_attr(not(feature = "lt2017_1"), doc = "the diffs of the files.")]
+    ///
+    /// Transitions this command to the [`ShortSummaryMode`] state.
+    pub fn short_summary_output(self) -> Describe<ShortSummaryMode> {
+        Describe {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            force_restricted: self.force_restricted,
+            #[cfg(not(feature = "lt2015_2"))]
+            use_identity: self.use_identity,
+            #[cfg(not(feature = "lt2017_1"))]
+            limit: self.limit,
+            use_original_number: self.use_original_number,
+            include_shelved_files: self.include_shelved_files,
+            mode: ShortSummaryMode,
+        }
+    }
+
+    /// # Description
+    ///
+    /// -a
+    ///
+    /// For text files only (ignores binary files):
+    ///
+    /// - For shelved files, shows the content for "open for add" (pending) files.
+    /// - For submitted files, shows the content of added files.
+    ///
+    /// Transitions this command to the [`DetailDiffMode`] state with `-a`
+    /// set according to `v`.
+    #[cfg(not(feature = "lt2017_2"))]
+    pub fn display_added_text_content(self, v: bool) -> Describe<DetailDiffMode> {
+        Describe {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            force_restricted: self.force_restricted,
+            #[cfg(not(feature = "lt2015_2"))]
+            use_identity: self.use_identity,
+            #[cfg(not(feature = "lt2017_1"))]
+            limit: self.limit,
+            use_original_number: self.use_original_number,
+            include_shelved_files: self.include_shelved_files,
+            mode: DetailDiffMode {
+                diff_options: None,
+                display_added_text_content: v,
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    #[cfg_attr(feature = "lt2014_2", doc = "-dflags")]
+    #[cfg_attr(not(feature = "lt2014_2"), doc = "-doptions")]
+    ///
+    /// Runs the diff routine with one of a subset of the standard UNIX diff
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "flags. See the Usage Notes below for a flag listing."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "options. See the Usage Notes below for a option listing."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2015_1")),
+        doc = "options. See Usage Notes for an option listing."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_1"),
+        doc = "options. See Usage notes for an option listing."
+    )]
+    ///
+    /// Transitions this command to the [`DetailDiffMode`] state with the
+    /// diff `options` set.
+    pub fn diff_options(self, v: impl Into<String>) -> Describe<DetailDiffMode> {
+        Describe {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            force_restricted: self.force_restricted,
+            #[cfg(not(feature = "lt2015_2"))]
+            use_identity: self.use_identity,
+            #[cfg(not(feature = "lt2017_1"))]
+            limit: self.limit,
+            use_original_number: self.use_original_number,
+            include_shelved_files: self.include_shelved_files,
+            mode: DetailDiffMode {
+                diff_options: Some(v.into()),
+                #[cfg(not(feature = "lt2017_2"))]
+                display_added_text_content: false,
+            },
+        }
+    }
+}
+
+impl<M: ExclusiveOption> Describe<M> {
     /// Spawns `p4 describe` for the given changelists as a child process.
     ///
     /// The child process inherits the standard input, output, and error
@@ -243,127 +339,6 @@ impl Describe {
     #[cfg_attr(not(feature = "lt2018_2"), doc = "See [Global options](GlobalOpts).")]
     pub fn global_opts(mut self, v: GlobalOpts) -> Self {
         self.global_opts = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -a
-    ///
-    /// For text files only (ignores binary files):
-    ///
-    /// - For shelved files, shows the content for "open for add" (pending) files.
-    /// - For submitted files, shows the content of added files.
-    #[cfg(not(feature = "lt2017_2"))]
-    pub fn get_text_only(&self) -> bool {
-        self.text_only
-    }
-
-    /// # Description
-    ///
-    /// -a
-    ///
-    /// For text files only (ignores binary files):
-    ///
-    /// - For shelved files, shows the content for "open for add" (pending) files.
-    /// - For submitted files, shows the content of added files.
-    #[cfg(not(feature = "lt2017_2"))]
-    pub fn set_text_only(&mut self, v: bool) -> &mut Self {
-        self.text_only = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -a
-    ///
-    /// For text files only (ignores binary files):
-    ///
-    /// - For shelved files, shows the content for "open for add" (pending) files.
-    /// - For submitted files, shows the content of added files.
-    #[cfg(not(feature = "lt2017_2"))]
-    pub fn text_only(mut self, v: bool) -> Self {
-        self.text_only = v;
-        self
-    }
-
-    /// # Description
-    ///
-    #[cfg_attr(feature = "lt2014_2", doc = "-dflags")]
-    #[cfg_attr(not(feature = "lt2014_2"), doc = "-doptions")]
-    ///
-    /// Runs the diff routine with one of a subset of the standard UNIX diff
-    #[cfg_attr(
-        feature = "lt2014_2",
-        doc = "flags. See the Usage Notes below for a flag listing."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2015_1", not(feature = "lt2014_2")),
-        doc = "options. See the Usage Notes below for a option listing."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2024_1", not(feature = "lt2015_1")),
-        doc = "options. See Usage Notes for an option listing."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2024_1"),
-        doc = "options. See Usage notes for an option listing."
-    )]
-    pub fn get_diff_options(&self) -> Option<&str> {
-        self.diff_options.as_deref()
-    }
-
-    /// # Description
-    ///
-    #[cfg_attr(feature = "lt2014_2", doc = "-dflags")]
-    #[cfg_attr(not(feature = "lt2014_2"), doc = "-doptions")]
-    ///
-    /// Runs the diff routine with one of a subset of the standard UNIX diff
-    #[cfg_attr(
-        feature = "lt2014_2",
-        doc = "flags. See the Usage Notes below for a flag listing."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2015_1", not(feature = "lt2014_2")),
-        doc = "options. See the Usage Notes below for a option listing."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2024_1", not(feature = "lt2015_1")),
-        doc = "options. See Usage Notes for an option listing."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2024_1"),
-        doc = "options. See Usage notes for an option listing."
-    )]
-    pub fn set_diff_options(&mut self, v: impl Into<String>) -> &mut Self {
-        self.diff_options = Some(v.into());
-        self
-    }
-
-    /// # Description
-    ///
-    #[cfg_attr(feature = "lt2014_2", doc = "-dflags")]
-    #[cfg_attr(not(feature = "lt2014_2"), doc = "-doptions")]
-    ///
-    /// Runs the diff routine with one of a subset of the standard UNIX diff
-    #[cfg_attr(
-        feature = "lt2014_2",
-        doc = "flags. See the Usage Notes below for a flag listing."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2015_1", not(feature = "lt2014_2")),
-        doc = "options. See the Usage Notes below for a option listing."
-    )]
-    #[cfg_attr(
-        all(feature = "lt2024_1", not(feature = "lt2015_1")),
-        doc = "options. See Usage Notes for an option listing."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2024_1"),
-        doc = "options. See Usage notes for an option listing."
-    )]
-    pub fn diff_options(mut self, v: impl Into<String>) -> Self {
-        self.diff_options = Some(v.into());
         self
     }
 
@@ -488,8 +463,8 @@ impl Describe {
     /// If a changelist was renumbered on submit, and you know only the
     /// original changelist number, use `-O` and the original changelist
     /// number to describe the changelist.
-    pub fn get_original(&self) -> bool {
-        self.original
+    pub fn get_use_original_number(&self) -> bool {
+        self.use_original_number
     }
 
     /// # Description
@@ -499,8 +474,8 @@ impl Describe {
     /// If a changelist was renumbered on submit, and you know only the
     /// original changelist number, use `-O` and the original changelist
     /// number to describe the changelist.
-    pub fn set_original(&mut self, v: bool) -> &mut Self {
-        self.original = v;
+    pub fn set_use_original_number(&mut self, v: bool) -> &mut Self {
+        self.use_original_number = v;
         self
     }
 
@@ -511,43 +486,8 @@ impl Describe {
     /// If a changelist was renumbered on submit, and you know only the
     /// original changelist number, use `-O` and the original changelist
     /// number to describe the changelist.
-    pub fn original(mut self, v: bool) -> Self {
-        self.original = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -s
-    ///
-    /// Display a shortened output that excludes
-    #[cfg_attr(feature = "lt2017_1", doc = "the files' diffs.")]
-    #[cfg_attr(not(feature = "lt2017_1"), doc = "the diffs of the files.")]
-    pub fn get_short_output(&self) -> bool {
-        self.short_output
-    }
-
-    /// # Description
-    ///
-    /// -s
-    ///
-    /// Display a shortened output that excludes
-    #[cfg_attr(feature = "lt2017_1", doc = "the files' diffs.")]
-    #[cfg_attr(not(feature = "lt2017_1"), doc = "the diffs of the files.")]
-    pub fn set_short_output(&mut self, v: bool) -> &mut Self {
-        self.short_output = v;
-        self
-    }
-
-    /// # Description
-    ///
-    /// -s
-    ///
-    /// Display a shortened output that excludes
-    #[cfg_attr(feature = "lt2017_1", doc = "the files' diffs.")]
-    #[cfg_attr(not(feature = "lt2017_1"), doc = "the diffs of the files.")]
-    pub fn short_output(mut self, v: bool) -> Self {
-        self.short_output = v;
+    pub fn use_original_number(mut self, v: bool) -> Self {
+        self.use_original_number = v;
         self
     }
 
@@ -626,6 +566,124 @@ impl Describe {
     }
 }
 
+impl Describe<DetailDiffMode> {
+    /// # Description
+    ///
+    #[cfg_attr(feature = "lt2014_2", doc = "-dflags")]
+    #[cfg_attr(not(feature = "lt2014_2"), doc = "-doptions")]
+    ///
+    /// Runs the diff routine with one of a subset of the standard UNIX diff
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "flags. See the Usage Notes below for a flag listing."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "options. See the Usage Notes below for a option listing."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2015_1")),
+        doc = "options. See Usage Notes for an option listing."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_1"),
+        doc = "options. See Usage notes for an option listing."
+    )]
+    pub fn get_diff_options(&self) -> Option<&str> {
+        self.mode.diff_options.as_deref()
+    }
+
+    /// # Description
+    ///
+    #[cfg_attr(feature = "lt2014_2", doc = "-dflags")]
+    #[cfg_attr(not(feature = "lt2014_2"), doc = "-doptions")]
+    ///
+    /// Runs the diff routine with one of a subset of the standard UNIX diff
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "flags. See the Usage Notes below for a flag listing."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "options. See the Usage Notes below for a option listing."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2015_1")),
+        doc = "options. See Usage Notes for an option listing."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_1"),
+        doc = "options. See Usage notes for an option listing."
+    )]
+    pub fn set_diff_options(&mut self, v: impl Into<String>) -> &mut Self {
+        self.mode.diff_options = Some(v.into());
+        self
+    }
+
+    /// # Description
+    ///
+    /// -a
+    ///
+    /// For text files only (ignores binary files):
+    ///
+    /// - For shelved files, shows the content for "open for add" (pending) files.
+    /// - For submitted files, shows the content of added files.
+    #[cfg(not(feature = "lt2017_2"))]
+    pub fn get_display_added_text_content(&self) -> bool {
+        self.mode.display_added_text_content
+    }
+
+    /// # Description
+    ///
+    /// -a
+    ///
+    /// For text files only (ignores binary files):
+    ///
+    /// - For shelved files, shows the content for "open for add" (pending) files.
+    /// - For submitted files, shows the content of added files.
+    #[cfg(not(feature = "lt2017_2"))]
+    pub fn set_display_added_text_content(&mut self, v: bool) -> &mut Self {
+        self.mode.display_added_text_content = v;
+        self
+    }
+}
+
+impl<M: ExclusiveOption> SubCommand for Describe<M> {
+    fn name(&self) -> &str {
+        "describe"
+    }
+
+    fn inject_local_args(&self, command: &mut Command) {
+        self.mode.inject_args(command);
+
+        if self.force_restricted {
+            command.arg("-f");
+        }
+
+        #[cfg(not(feature = "lt2015_2"))]
+        if self.use_identity {
+            command.arg("-I");
+        }
+
+        #[cfg(not(feature = "lt2017_1"))]
+        if let Some(max) = self.limit {
+            command.arg("-m").arg(max.to_string());
+        }
+
+        if self.use_original_number {
+            command.arg("-O");
+        }
+
+        if self.include_shelved_files {
+            command.arg("-S");
+        }
+    }
+
+    fn global_opts(&self) -> Option<&GlobalOpts> {
+        Some(&self.global_opts)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -641,32 +699,94 @@ mod tests {
     }
 
     #[test]
-    fn all_local_options() {
+    fn unselected_with_generic_options() {
         let mut describe = Describe::new("p4", GlobalOpts::new());
-        #[cfg(not(feature = "lt2017_2"))]
-        describe.set_text_only(true);
-        describe.set_diff_options("du").set_force_restricted(true);
+        describe.set_force_restricted(true);
         #[cfg(not(feature = "lt2015_2"))]
         describe.set_use_identity(true);
         #[cfg(not(feature = "lt2017_1"))]
         describe.set_limit(2);
         describe
-            .set_original(true)
-            .set_short_output(true)
+            .set_use_original_number(true)
             .set_include_shelved_files(true);
 
         let mut expected = vec!["describe"];
-        #[cfg(not(feature = "lt2017_2"))]
-        expected.push("-a");
-        expected.push("-ddu");
         expected.push("-f");
         #[cfg(not(feature = "lt2015_2"))]
         expected.push("-I");
         #[cfg(not(feature = "lt2017_1"))]
         expected.extend(["-m", "2"]);
-        expected.extend(["-O", "-s", "-S"]);
+        expected.extend(["-O", "-S"]);
 
         assert_eq!(args_of(&describe.setup_command("p4")), expected);
+    }
+
+    #[test]
+    fn short_summary_mode() {
+        let describe = Describe::new("p4", GlobalOpts::new())
+            .force_restricted(true)
+            .short_summary_output();
+
+        assert_eq!(
+            args_of(&describe.setup_command("p4")),
+            ["describe", "-s", "-f"]
+        );
+    }
+
+    #[test]
+    fn mode_transition_preserves_generic_options() {
+        let mut describe = Describe::new("p4", GlobalOpts::new());
+        describe.set_force_restricted(true);
+        #[cfg(not(feature = "lt2017_1"))]
+        describe.set_limit(3);
+
+        let describe = describe.short_summary_output().include_shelved_files(true);
+
+        let mut expected = vec!["describe", "-s", "-f"];
+        #[cfg(not(feature = "lt2017_1"))]
+        expected.extend(["-m", "3"]);
+        expected.push("-S");
+
+        assert_eq!(args_of(&describe.setup_command("p4")), expected);
+    }
+
+    #[test]
+    fn detail_diff_mode_via_diff_options() {
+        let describe = Describe::new("p4", GlobalOpts::new()).diff_options("du");
+
+        assert_eq!(describe.get_diff_options(), Some("du"));
+        assert_eq!(args_of(&describe.setup_command("p4")), ["describe", "-ddu"]);
+    }
+
+    #[test]
+    fn detail_diff_mode_set_diff_options() {
+        let mut describe = Describe::new("p4", GlobalOpts::new()).diff_options("du");
+        describe.set_diff_options("sb");
+
+        assert_eq!(describe.get_diff_options(), Some("sb"));
+        assert_eq!(args_of(&describe.setup_command("p4")), ["describe", "-dsb"]);
+    }
+
+    #[cfg(not(feature = "lt2017_2"))]
+    #[test]
+    fn detail_diff_mode_via_display_added_text_content() {
+        let describe = Describe::new("p4", GlobalOpts::new()).display_added_text_content(true);
+
+        assert!(describe.get_display_added_text_content());
+        assert_eq!(describe.get_diff_options(), None);
+        assert_eq!(args_of(&describe.setup_command("p4")), ["describe", "-a"]);
+    }
+
+    #[cfg(not(feature = "lt2017_2"))]
+    #[test]
+    fn detail_diff_mode_combines_a_and_d() {
+        let mut describe = Describe::new("p4", GlobalOpts::new()).display_added_text_content(true);
+        describe.set_diff_options("du");
+
+        assert_eq!(
+            args_of(&describe.setup_command("p4")),
+            ["describe", "-a", "-ddu"]
+        );
     }
 
     #[cfg(not(feature = "lt2017_1"))]
