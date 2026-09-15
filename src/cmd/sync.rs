@@ -1,13 +1,212 @@
-pub struct Sync {
-    bin: PathBuf,
+use std::{
+    ffi::OsStr,
+    path::PathBuf,
+    process::{Child, Command, Output, Stdio},
+};
 
-    global_opts: GlobalOpts,
+use crate::{
+    cmd::{ExclusiveOption, SubCommand, Unselected},
+    global::GlobalOpts,
+};
 
-    sync_mode: Option<SyncMode>,
+/// Configuration for the `--parallel` option of `p4 sync`.
+///
+/// Controls how files are transferred in parallel. `threads` is required;
+/// all other sub-options are optional and fall back to server defaults when
+/// omitted.
+#[derive(Debug, Clone, Default)]
+pub struct ParallelConfig {
+    /// Number of concurrent network connections (`threads=N`).
+    pub threads: u64,
 
-    scrpit_list_mode: bool,
+    /// Number of files in a batch (`batch=N`).
+    pub batch_files: Option<u64>,
 
-    preview: Option<PreviewMode>,
+    /// Number of bytes in a batch (`batchsize=N`).
+    pub batch_size_bytes: Option<u64>,
+
+    /// Minimum number of files for a parallel sync (`min=N`).
+    pub min_files: Option<u64>,
+
+    /// Minimum number of bytes for a parallel sync (`minsize=N`).
+    pub min_size_bytes: Option<u64>,
+}
+
+impl ParallelConfig {
+    /// Builds the value passed to `--parallel=...`, e.g.
+    /// `threads=4,batch=8,batchsize=512K,min=9,minsize=576K`.
+    pub fn as_arg(&self) -> String {
+        let mut parts = vec![format!("threads={}", self.threads)];
+
+        if let Some(v) = self.batch_files {
+            parts.push(format!("batch={}", v));
+        }
+        if let Some(v) = self.batch_size_bytes {
+            parts.push(format!("batchsize={}", v));
+        }
+        if let Some(v) = self.min_files {
+            parts.push(format!("min={}", v));
+        }
+        if let Some(v) = self.min_size_bytes {
+            parts.push(format!("minsize={}", v));
+        }
+
+        parts.join(",")
+    }
+}
+
+/// The `--use-stream-change` value controlling which stream specification
+/// version is used to generate the client view.
+#[derive(Debug, Clone, Copy)]
+pub enum StreamSpecVersion {
+    /// `--use-stream-change` with no value: the maximum change number in the
+    /// file list determines the stream spec version.
+    MaxInFilelists,
+    /// `--use-stream-change=0`: use the current stream spec version.
+    Current,
+    /// `--use-stream-change=N`: use the stream spec version at or before
+    /// change `N`.
+    ChangeNumber(u32),
+}
+
+impl StreamSpecVersion {
+    /// `--use-stream-change` with no value: the maximum change number in the
+    /// file list determines the stream spec version.
+    pub fn max_in_filelists() -> Self {
+        StreamSpecVersion::MaxInFilelists
+    }
+
+    /// `--use-stream-change=0`: use the current stream spec version.
+    pub fn current() -> Self {
+        StreamSpecVersion::Current
+    }
+
+    /// `--use-stream-change=N`: use the stream spec version at or before
+    /// change `n`.
+    pub fn at_change(n: u32) -> Self {
+        StreamSpecVersion::ChangeNumber(n)
+    }
+
+    /// Injects the `--use-stream-change` argument(s) into `command`.
+    pub fn inject_arg(&self, command: &mut Command) {
+        match self {
+            StreamSpecVersion::MaxInFilelists => {
+                command.arg("--use-stream-change");
+            }
+            StreamSpecVersion::Current => {
+                command.arg("--use-stream-change=0");
+            }
+            StreamSpecVersion::ChangeNumber(n) => {
+                command.arg(format!("--use-stream-change={}", n));
+            }
+        }
+    }
+}
+
+/// Preview mode of `p4 sync` (`-n`): display the results of the sync without
+/// actually performing the sync.
+///
+/// Entered with [`Sync::preview_result`]. Mutually exclusive with
+/// [`PreviewNetworkTraffic`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PreviewResult;
+
+impl ExclusiveOption for PreviewResult {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-n");
+    }
+}
+
+/// Preview mode of `p4 sync` (`-N`): display a summary of the expected
+/// network traffic associated with a sync, without performing the sync.
+///
+/// Entered with [`Sync::preview_network_traffic`]. Mutually exclusive with
+/// [`PreviewResult`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PreviewNetworkTraffic;
+
+impl ExclusiveOption for PreviewNetworkTraffic {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-N");
+    }
+}
+
+/// Force execution sub-mode of [`RegularMode`]: entered when any of `-f`,
+/// `-k`, or `-r` is set.
+///
+/// In this state the command is locked into the regular sync form and can no
+/// longer transition to [`SafeCheckMode`] or [`PopulateMode`].
+#[derive(Debug, Clone, Default)]
+pub struct ForceRegularMode {
+    force: bool,
+
+    metadata_only: bool,
+
+    reopen_moved_files: bool,
+}
+
+impl ExclusiveOption for ForceRegularMode {
+    fn inject_args(&self, command: &mut Command) {
+        if self.force {
+            command.arg("-f");
+        }
+
+        if self.metadata_only {
+            command.arg("-k");
+        }
+
+        if self.reopen_moved_files {
+            command.arg("-r");
+        }
+    }
+}
+
+/// Safe sync sub-mode of [`RegularMode`] (`-s`): compare the content in the
+/// client workspace against what was last synced and do not overwrite files
+/// that were modified outside of P4 Server's control.
+///
+/// Entered with [`Sync::safe_check`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SafeCheckMode;
+
+impl ExclusiveOption for SafeCheckMode {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-s");
+    }
+}
+
+/// Populate sub-mode of [`RegularMode`] (`-p`): populate a client workspace
+/// but do not update the have list.
+///
+/// Entered with [`Sync::populate`].
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PopulateMode;
+
+impl ExclusiveOption for PopulateMode {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-p");
+    }
+}
+
+/// Regular mode of `p4 sync`: the command forms that operate on the client
+/// workspace.
+///
+/// All common options are stored directly on this struct. The `Mode` type
+/// parameter selects the mutually exclusive execution sub-mode:
+///
+/// - [`Unselected`] (default): the first command form, plain regular sync.
+/// - [`ForceRegularMode`]: entered by setting `-f`, `-k`, or `-r`; locks out
+///   further transitions to [`SafeCheckMode`] or [`PopulateMode`].
+/// - [`SafeCheckMode`]: entered by [`Sync::safe_check`] (`-s`).
+/// - [`PopulateMode`]: entered by [`Sync::populate`] (`-p`).
+///
+/// The `P` type parameter tracks the preview mode ([`Unselected`] by default,
+/// [`PreviewResult`] or [`PreviewNetworkTraffic`] otherwise).
+#[derive(Debug, Clone, Default)]
+pub struct RegularMode<Mode = Unselected, P = Unselected> {
+    verify_edge_replication: bool,
+
+    script_list_mode: bool,
 
     suppress_keyword_expansion: bool,
 
@@ -15,52 +214,1220 @@ pub struct Sync {
 
     limit: Option<u64>,
 
-    verify_edge_replication: bool,
-
     parallel: Option<ParallelConfig>,
 
     stream_spec_version: Option<StreamSpecVersion>,
+
+    mode: Mode,
+
+    preview: P,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SyncMode {
-    Standard {
-        force: bool,
+impl<Mode: ExclusiveOption, P: ExclusiveOption> ExclusiveOption for RegularMode<Mode, P> {
+    fn inject_args(&self, command: &mut Command) {
+        if self.verify_edge_replication {
+            command.arg("-E");
+        }
 
-        metadata_only_flush: bool,
+        if self.script_list_mode {
+            command.arg("-L");
+        }
 
-        reopen_moved_files: bool,
-    },
+        if self.suppress_keyword_expansion {
+            command.arg("-K");
+        }
 
-    Safe {
-        safe_sync: bool,
-    },
+        if self.quiet_mode {
+            command.arg("-q");
+        }
 
-    Populate {
-        populate_only: bool,
-    },
+        self.mode.inject_args(command);
 
-    HistoricalSnapshot {
-        sync_time: String,
-    },
+        self.preview.inject_args(command);
+
+        if let Some(max) = self.limit {
+            command.arg("-m").arg(max.to_string());
+        }
+
+        if let Some(parallel) = &self.parallel {
+            command.arg(format!("--parallel={}", parallel.as_arg()));
+        }
+
+        if let Some(version) = &self.stream_spec_version {
+            version.inject_arg(command);
+        }
+    }
 }
 
+/// Sync-time mode of `p4 sync` (`-k --sync-time=N`): update the have list to
+/// reflect the state of the depot at the given time without transferring
+/// files.
+///
+/// Entered with [`Sync::sync_time`]. This mode always implies `-k` (metadata
+/// only), so no separate interface is provided for it.
+#[derive(Debug, Clone)]
+pub struct SyncTimeMode {
+    sync_time: String,
+}
+
+impl ExclusiveOption for SyncTimeMode {
+    fn inject_args(&self, command: &mut Command) {
+        command
+            .arg("-k")
+            .arg(format!("--sync-time={}", self.sync_time));
+    }
+}
+
+///
+/// Update the client workspace to reflect the contents of the depot.
+///
+/// The `M` type parameter tracks the top-level mode at compile time. The
+/// default [`Unselected`] state syncs files without local options; setting
+/// any regular option or calling a mode-transition method moves into
+/// [`RegularMode`]; [`Self::sync_time`] moves into [`SyncTimeMode`].
 #[derive(Debug, Clone, Default)]
-pub struct ParallelConfig {
-    pub threads: u64,
+pub struct Sync<M = Unselected> {
+    bin: PathBuf,
 
-    pub batch_files: Option<u64>,
+    global_opts: GlobalOpts,
 
-    pub batch_size_bytes: Option<u64>,
-
-    pub min_files: Option<u64>,
-
-    pub min_size_bytes: Option<u64>,
+    mode: M,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum StreamSpecVersion {
-    AutoFromMaxFilelists,
-    CurrentVersion,
-    SpecificChangelist(u32),
+impl Sync<Unselected> {
+    /// Creates a new `p4 sync` command.
+    ///
+    /// `bin` is the path to the Perforce command-line executable.
+    pub fn new(bin: impl Into<PathBuf>, global_opts: GlobalOpts) -> Self {
+        Self {
+            bin: bin.into(),
+            global_opts,
+            mode: Unselected,
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-k --sync-time=N`
+    ///
+    /// Update the have list to reflect the state of the depot at the given
+    /// time without transferring files. The value of `N` can be Unix epoch
+    /// time or the Perforce date time format.
+    ///
+    /// This mode always implies `-k`, so no separate interface is provided
+    /// for it. Transitions this command to the [`SyncTimeMode`] state.
+    pub fn sync_time(self, time: impl Into<String>) -> Sync<SyncTimeMode> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: SyncTimeMode {
+                sync_time: time.into(),
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-s`
+    ///
+    /// Safe sync: compare the content in the client workspace against what
+    /// was last synced. If the file was modified outside of the control of
+    /// P4 Server, an error message is displayed and the file is not
+    /// overwritten.
+    ///
+    /// Transitions this command to the [`RegularMode`] state with the
+    /// [`SafeCheckMode`] sub-mode.
+    pub fn enable_safe_check(self) -> Sync<RegularMode<SafeCheckMode>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                mode: SafeCheckMode,
+                ..RegularMode::default()
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-p`
+    ///
+    /// Populate a client workspace, but do not update the have list. Any
+    /// file that is already synced or opened is bypassed with a warning
+    /// message.
+    ///
+    /// Transitions this command to the [`RegularMode`] state with the
+    /// [`PopulateMode`] sub-mode.
+    pub fn populate_client_workspace(self) -> Sync<RegularMode<PopulateMode>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                mode: PopulateMode,
+                ..RegularMode::default()
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-E`
+    ///
+    /// For edge servers replicating from a commit or an upstream edge, verify
+    /// that any changelists specified in the revSpec are submitted before
+    /// continuing with the sync.
+    ///
+    /// Transitions this command to the [`RegularMode`] state.
+    pub fn verify_edge_replication(self, v: bool) -> Sync<RegularMode> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                verify_edge_replication: v,
+                ..RegularMode::default()
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-L`
+    ///
+    /// For scripting purposes, perform the sync on a list of valid file
+    /// arguments in full depot syntax with a valid revision number.
+    ///
+    /// Transitions this command to the [`RegularMode`] state.
+    pub fn script_list_mode(self, v: bool) -> Sync<RegularMode> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                script_list_mode: v,
+                ..RegularMode::default()
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-K`
+    ///
+    /// Suppress keyword expansion when updating `+k` type files on the
+    /// client.
+    ///
+    /// Transitions this command to the [`RegularMode`] state.
+    pub fn suppress_keyword_expansion(self, v: bool) -> Sync<RegularMode> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                suppress_keyword_expansion: v,
+                ..RegularMode::default()
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-q`
+    ///
+    /// Quiet operation: suppress normal output messages. Messages describing
+    /// errors or exceptional conditions are not suppressed.
+    ///
+    /// Transitions this command to the [`RegularMode`] state.
+    pub fn quiet_mode(self, v: bool) -> Sync<RegularMode> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                quiet_mode: v,
+                ..RegularMode::default()
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-m max`
+    ///
+    /// Sync only the first `max` files specified.
+    ///
+    /// Transitions this command to the [`RegularMode`] state.
+    pub fn limit(self, v: u64) -> Sync<RegularMode> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                limit: Some(v),
+                ..RegularMode::default()
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `--parallel=threads=N[,batch=N][,batchsize=N][,min=N][,minsize=N]`
+    ///
+    /// Specify options for parallel file transfer.
+    ///
+    /// Transitions this command to the [`RegularMode`] state.
+    pub fn parallel(self, v: ParallelConfig) -> Sync<RegularMode> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                parallel: Some(v),
+                ..RegularMode::default()
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `--use-stream-change[N]`
+    ///
+    /// Specify the stream specification version to use for generating the
+    /// client view for sync.
+    ///
+    /// Transitions this command to the [`RegularMode`] state.
+    pub fn stream_spec_version(self, v: StreamSpecVersion) -> Sync<RegularMode> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                stream_spec_version: Some(v),
+                ..RegularMode::default()
+            },
+        }
+    }
+
+    /// `--use-stream-change` (no value): the maximum change number in the
+    /// file list determines the stream spec version.
+    ///
+    /// Transitions this command to the [`RegularMode`] state.
+    pub fn stream_change(self) -> Sync<RegularMode> {
+        self.stream_spec_version(StreamSpecVersion::MaxInFilelists)
+    }
+
+    /// `--use-stream-change=0`: use the current stream spec version.
+    ///
+    /// Transitions this command to the [`RegularMode`] state.
+    pub fn stream_change_current(self) -> Sync<RegularMode> {
+        self.stream_spec_version(StreamSpecVersion::Current)
+    }
+
+    /// `--use-stream-change=N`: use the stream spec version at or before
+    /// change `n`.
+    ///
+    /// Transitions this command to the [`RegularMode`] state.
+    pub fn stream_change_at(self, n: u32) -> Sync<RegularMode> {
+        self.stream_spec_version(StreamSpecVersion::ChangeNumber(n))
+    }
+
+    /// # Description
+    ///
+    /// `-n`
+    ///
+    /// Preview mode: display the results of the sync without actually
+    /// performing the sync.
+    ///
+    /// Transitions this command to the [`RegularMode`] state with the
+    /// [`PreviewResult`] preview mode.
+    pub fn preview_result(self) -> Sync<RegularMode<Unselected, PreviewResult>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                preview: PreviewResult,
+                ..RegularMode::default()
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-N`
+    ///
+    /// Preview mode: display a summary of the expected network traffic
+    /// associated with a sync, without performing the sync.
+    ///
+    /// Transitions this command to the [`RegularMode`] state with the
+    /// [`PreviewNetworkTraffic`] preview mode.
+    pub fn preview_network_traffic(self) -> Sync<RegularMode<Unselected, PreviewNetworkTraffic>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                preview: PreviewNetworkTraffic,
+                ..RegularMode::default()
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-f`
+    ///
+    /// Force the sync. P4 Server performs the sync even if the client
+    /// workspace already has the file at the specified revision.
+    ///
+    /// Transitions this command to the [`RegularMode`] state with the
+    /// [`ForceRegularMode`] sub-mode, which prevents further transitions to
+    /// [`SafeCheckMode`] or [`PopulateMode`].
+    pub fn force(self, v: bool) -> Sync<RegularMode<ForceRegularMode>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                mode: ForceRegularMode {
+                    force: v,
+                    ..ForceRegularMode::default()
+                },
+                ..RegularMode::default()
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-k`
+    ///
+    /// Update server metadata without syncing files. Keep existing workspace
+    /// files and update the have list without updating the client workspace.
+    ///
+    /// Transitions this command to the [`RegularMode`] state with the
+    /// [`ForceRegularMode`] sub-mode, which prevents further transitions to
+    /// [`SafeCheckMode`] or [`PopulateMode`].
+    pub fn metadata_only(self, v: bool) -> Sync<RegularMode<ForceRegularMode>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                mode: ForceRegularMode {
+                    metadata_only: v,
+                    ..ForceRegularMode::default()
+                },
+                ..RegularMode::default()
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-r`
+    ///
+    /// Reopen files that are mapped to new locations in the depot, in the new
+    /// location.
+    ///
+    /// Transitions this command to the [`RegularMode`] state with the
+    /// [`ForceRegularMode`] sub-mode, which prevents further transitions to
+    /// [`SafeCheckMode`] or [`PopulateMode`].
+    pub fn reopen_moved_files(self, v: bool) -> Sync<RegularMode<ForceRegularMode>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                mode: ForceRegularMode {
+                    reopen_moved_files: v,
+                    ..ForceRegularMode::default()
+                },
+                ..RegularMode::default()
+            },
+        }
+    }
+}
+
+// ---- Common option accessors (available in every RegularMode sub-mode) ----
+
+impl<Mode: ExclusiveOption, P: ExclusiveOption> Sync<RegularMode<Mode, P>> {
+    /// Returns whether edge replication is verified (`-E`).
+    pub fn get_verify_edge_replication(&self) -> bool {
+        self.mode.verify_edge_replication
+    }
+
+    /// Sets whether edge replication is verified (`-E`).
+    pub fn set_verify_edge_replication(&mut self, v: bool) -> &mut Self {
+        self.mode.verify_edge_replication = v;
+        self
+    }
+
+    /// Sets whether edge replication is verified (`-E`).
+    pub fn verify_edge_replication(mut self, v: bool) -> Self {
+        self.mode.verify_edge_replication = v;
+        self
+    }
+
+    /// Returns whether script list mode is enabled (`-L`).
+    pub fn get_script_list_mode(&self) -> bool {
+        self.mode.script_list_mode
+    }
+
+    /// Sets whether script list mode is enabled (`-L`).
+    pub fn set_script_list_mode(&mut self, v: bool) -> &mut Self {
+        self.mode.script_list_mode = v;
+        self
+    }
+
+    /// Sets whether script list mode is enabled (`-L`).
+    pub fn script_list_mode(mut self, v: bool) -> Self {
+        self.mode.script_list_mode = v;
+        self
+    }
+
+    /// Returns whether keyword expansion is suppressed (`-K`).
+    pub fn get_suppress_keyword_expansion(&self) -> bool {
+        self.mode.suppress_keyword_expansion
+    }
+
+    /// Sets whether keyword expansion is suppressed (`-K`).
+    pub fn set_suppress_keyword_expansion(&mut self, v: bool) -> &mut Self {
+        self.mode.suppress_keyword_expansion = v;
+        self
+    }
+
+    /// Sets whether keyword expansion is suppressed (`-K`).
+    pub fn suppress_keyword_expansion(mut self, v: bool) -> Self {
+        self.mode.suppress_keyword_expansion = v;
+        self
+    }
+
+    /// Returns whether quiet mode is enabled (`-q`).
+    pub fn get_quiet_mode(&self) -> bool {
+        self.mode.quiet_mode
+    }
+
+    /// Sets whether quiet mode is enabled (`-q`).
+    pub fn set_quiet_mode(&mut self, v: bool) -> &mut Self {
+        self.mode.quiet_mode = v;
+        self
+    }
+
+    /// Sets whether quiet mode is enabled (`-q`).
+    pub fn quiet_mode(mut self, v: bool) -> Self {
+        self.mode.quiet_mode = v;
+        self
+    }
+
+    /// Returns the maximum number of files to sync (`-m max`).
+    pub fn get_limit(&self) -> Option<u64> {
+        self.mode.limit
+    }
+
+    /// Sets the maximum number of files to sync (`-m max`).
+    pub fn set_limit(&mut self, v: u64) -> &mut Self {
+        self.mode.limit = Some(v);
+        self
+    }
+
+    /// Sets the maximum number of files to sync (`-m max`).
+    pub fn limit(mut self, v: u64) -> Self {
+        self.mode.limit = Some(v);
+        self
+    }
+
+    /// Returns the parallel sync configuration (`--parallel`).
+    pub fn get_parallel(&self) -> Option<&ParallelConfig> {
+        self.mode.parallel.as_ref()
+    }
+
+    /// Sets the parallel sync configuration (`--parallel`).
+    pub fn set_parallel(&mut self, v: ParallelConfig) -> &mut Self {
+        self.mode.parallel = Some(v);
+        self
+    }
+
+    /// Sets the parallel sync configuration (`--parallel`).
+    pub fn parallel(mut self, v: ParallelConfig) -> Self {
+        self.mode.parallel = Some(v);
+        self
+    }
+
+    /// Returns the stream spec version (`--use-stream-change`).
+    pub fn get_stream_spec_version(&self) -> Option<StreamSpecVersion> {
+        self.mode.stream_spec_version
+    }
+
+    /// Sets the stream spec version (`--use-stream-change`).
+    pub fn set_stream_spec_version(&mut self, v: StreamSpecVersion) -> &mut Self {
+        self.mode.stream_spec_version = Some(v);
+        self
+    }
+
+    /// Sets the stream spec version (`--use-stream-change`).
+    pub fn stream_spec_version(mut self, v: StreamSpecVersion) -> Self {
+        self.mode.stream_spec_version = Some(v);
+        self
+    }
+
+    /// `--use-stream-change` (no value): the maximum change number in the
+    /// file list determines the stream spec version.
+    pub fn set_stream_change(&mut self) -> &mut Self {
+        self.mode.stream_spec_version = Some(StreamSpecVersion::MaxInFilelists);
+        self
+    }
+
+    /// `--use-stream-change` (no value): the maximum change number in the
+    /// file list determines the stream spec version.
+    pub fn stream_change(mut self) -> Self {
+        self.mode.stream_spec_version = Some(StreamSpecVersion::MaxInFilelists);
+        self
+    }
+
+    /// `--use-stream-change=0`: use the current stream spec version.
+    pub fn set_stream_change_current(&mut self) -> &mut Self {
+        self.mode.stream_spec_version = Some(StreamSpecVersion::Current);
+        self
+    }
+
+    /// `--use-stream-change=0`: use the current stream spec version.
+    pub fn stream_change_current(mut self) -> Self {
+        self.mode.stream_spec_version = Some(StreamSpecVersion::Current);
+        self
+    }
+
+    /// `--use-stream-change=N`: use the stream spec version at or before
+    /// change `n`.
+    pub fn set_stream_change_at(&mut self, n: u32) -> &mut Self {
+        self.mode.stream_spec_version = Some(StreamSpecVersion::ChangeNumber(n));
+        self
+    }
+
+    /// `--use-stream-change=N`: use the stream spec version at or before
+    /// change `n`.
+    pub fn stream_change_at(mut self, n: u32) -> Self {
+        self.mode.stream_spec_version = Some(StreamSpecVersion::ChangeNumber(n));
+        self
+    }
+}
+
+// ---- Sub-mode transitions (only from the Unselected sub-mode) ----
+
+impl<P: ExclusiveOption> Sync<RegularMode<Unselected, P>> {
+    /// # Description
+    ///
+    /// `-f`
+    ///
+    /// Force the sync. P4 Server performs the sync even if the client
+    /// workspace already has the file at the specified revision.
+    ///
+    /// Transitions the sub-mode to [`ForceRegularMode`], which prevents
+    /// further transitions to [`SafeCheckMode`] or [`PopulateMode`].
+    pub fn force(self, v: bool) -> Sync<RegularMode<ForceRegularMode, P>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                verify_edge_replication: self.mode.verify_edge_replication,
+                script_list_mode: self.mode.script_list_mode,
+                suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
+                quiet_mode: self.mode.quiet_mode,
+                limit: self.mode.limit,
+                parallel: self.mode.parallel,
+                stream_spec_version: self.mode.stream_spec_version,
+                mode: ForceRegularMode {
+                    force: v,
+                    ..ForceRegularMode::default()
+                },
+                preview: self.mode.preview,
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-k`
+    ///
+    /// Update server metadata without syncing files. Keep existing workspace
+    /// files and update the have list without updating the client workspace.
+    ///
+    /// Transitions the sub-mode to [`ForceRegularMode`], which prevents
+    /// further transitions to [`SafeCheckMode`] or [`PopulateMode`].
+    pub fn metadata_only(self, v: bool) -> Sync<RegularMode<ForceRegularMode, P>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                verify_edge_replication: self.mode.verify_edge_replication,
+                script_list_mode: self.mode.script_list_mode,
+                suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
+                quiet_mode: self.mode.quiet_mode,
+                limit: self.mode.limit,
+                parallel: self.mode.parallel,
+                stream_spec_version: self.mode.stream_spec_version,
+                mode: ForceRegularMode {
+                    metadata_only: v,
+                    ..ForceRegularMode::default()
+                },
+                preview: self.mode.preview,
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-r`
+    ///
+    /// Reopen files that are mapped to new locations in the depot, in the new
+    /// location.
+    ///
+    /// Transitions the sub-mode to [`ForceRegularMode`], which prevents
+    /// further transitions to [`SafeCheckMode`] or [`PopulateMode`].
+    pub fn reopen_moved_files(self, v: bool) -> Sync<RegularMode<ForceRegularMode, P>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                verify_edge_replication: self.mode.verify_edge_replication,
+                script_list_mode: self.mode.script_list_mode,
+                suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
+                quiet_mode: self.mode.quiet_mode,
+                limit: self.mode.limit,
+                parallel: self.mode.parallel,
+                stream_spec_version: self.mode.stream_spec_version,
+                mode: ForceRegularMode {
+                    reopen_moved_files: v,
+                    ..ForceRegularMode::default()
+                },
+                preview: self.mode.preview,
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-s`
+    ///
+    /// Safe sync: compare the content in the client workspace against what
+    /// was last synced. If the file was modified outside of the control of
+    /// P4 Server, an error message is displayed and the file is not
+    /// overwritten.
+    ///
+    /// Transitions the sub-mode to [`SafeCheckMode`].
+    pub fn safe_check(self) -> Sync<RegularMode<SafeCheckMode, P>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                verify_edge_replication: self.mode.verify_edge_replication,
+                script_list_mode: self.mode.script_list_mode,
+                suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
+                quiet_mode: self.mode.quiet_mode,
+                limit: self.mode.limit,
+                parallel: self.mode.parallel,
+                stream_spec_version: self.mode.stream_spec_version,
+                mode: SafeCheckMode,
+                preview: self.mode.preview,
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-p`
+    ///
+    /// Populate a client workspace, but do not update the have list. Any
+    /// file that is already synced or opened is bypassed with a warning
+    /// message.
+    ///
+    /// Transitions the sub-mode to [`PopulateMode`].
+    pub fn populate(self) -> Sync<RegularMode<PopulateMode, P>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                verify_edge_replication: self.mode.verify_edge_replication,
+                script_list_mode: self.mode.script_list_mode,
+                suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
+                quiet_mode: self.mode.quiet_mode,
+                limit: self.mode.limit,
+                parallel: self.mode.parallel,
+                stream_spec_version: self.mode.stream_spec_version,
+                mode: PopulateMode,
+                preview: self.mode.preview,
+            },
+        }
+    }
+}
+
+// ---- Preview transitions (only when preview is Unselected) ----
+
+impl<Mode: ExclusiveOption> Sync<RegularMode<Mode, Unselected>> {
+    /// # Description
+    ///
+    /// `-n`
+    ///
+    /// Preview mode: display the results of the sync without actually
+    /// performing the sync.
+    pub fn preview_result(self) -> Sync<RegularMode<Mode, PreviewResult>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                verify_edge_replication: self.mode.verify_edge_replication,
+                script_list_mode: self.mode.script_list_mode,
+                suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
+                quiet_mode: self.mode.quiet_mode,
+                limit: self.mode.limit,
+                parallel: self.mode.parallel,
+                stream_spec_version: self.mode.stream_spec_version,
+                mode: self.mode.mode,
+                preview: PreviewResult,
+            },
+        }
+    }
+
+    /// # Description
+    ///
+    /// `-N`
+    ///
+    /// Preview mode: display a summary of the expected network traffic
+    /// associated with a sync, without performing the sync.
+    pub fn preview_network_traffic(self) -> Sync<RegularMode<Mode, PreviewNetworkTraffic>> {
+        Sync {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: RegularMode {
+                verify_edge_replication: self.mode.verify_edge_replication,
+                script_list_mode: self.mode.script_list_mode,
+                suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
+                quiet_mode: self.mode.quiet_mode,
+                limit: self.mode.limit,
+                parallel: self.mode.parallel,
+                stream_spec_version: self.mode.stream_spec_version,
+                mode: self.mode.mode,
+                preview: PreviewNetworkTraffic,
+            },
+        }
+    }
+}
+
+// ---- Force-only option accessors (only in ForceRegularMode sub-mode) ----
+
+impl<P: ExclusiveOption> Sync<RegularMode<ForceRegularMode, P>> {
+    /// Returns whether the sync is forced (`-f`).
+    pub fn get_force(&self) -> bool {
+        self.mode.mode.force
+    }
+
+    /// Sets whether the sync is forced (`-f`).
+    pub fn set_force(&mut self, v: bool) -> &mut Self {
+        self.mode.mode.force = v;
+        self
+    }
+
+    /// Sets whether the sync is forced (`-f`).
+    pub fn force(mut self, v: bool) -> Self {
+        self.mode.mode.force = v;
+        self
+    }
+
+    /// Returns whether only metadata is updated (`-k`).
+    pub fn get_metadata_only(&self) -> bool {
+        self.mode.mode.metadata_only
+    }
+
+    /// Sets whether only metadata is updated (`-k`).
+    pub fn set_metadata_only(&mut self, v: bool) -> &mut Self {
+        self.mode.mode.metadata_only = v;
+        self
+    }
+
+    /// Sets whether only metadata is updated (`-k`).
+    pub fn metadata_only(mut self, v: bool) -> Self {
+        self.mode.mode.metadata_only = v;
+        self
+    }
+
+    /// Returns whether moved files are reopened (`-r`).
+    pub fn get_reopen_moved_files(&self) -> bool {
+        self.mode.mode.reopen_moved_files
+    }
+
+    /// Sets whether moved files are reopened (`-r`).
+    pub fn set_reopen_moved_files(&mut self, v: bool) -> &mut Self {
+        self.mode.mode.reopen_moved_files = v;
+        self
+    }
+
+    /// Sets whether moved files are reopened (`-r`).
+    pub fn reopen_moved_files(mut self, v: bool) -> Self {
+        self.mode.mode.reopen_moved_files = v;
+        self
+    }
+}
+
+// ---- SyncTimeMode accessors ----
+
+impl Sync<SyncTimeMode> {
+    /// Returns the sync time value (`--sync-time=N`).
+    pub fn get_sync_time(&self) -> &str {
+        &self.mode.sync_time
+    }
+
+    /// Sets the sync time value (`--sync-time=N`). The value can be Unix
+    /// epoch time or the Perforce date time format.
+    pub fn set_sync_time(&mut self, v: impl Into<String>) -> &mut Self {
+        self.mode.sync_time = v.into();
+        self
+    }
+
+    /// Sets the sync time value (`--sync-time=N`). The value can be Unix
+    /// epoch time or the Perforce date time format.
+    pub fn sync_time(mut self, v: impl Into<String>) -> Self {
+        self.mode.sync_time = v.into();
+        self
+    }
+}
+
+// ---- Shared: executors + global opts ----
+
+impl<M: ExclusiveOption> Sync<M> {
+    /// Spawns `p4 sync` for the given files as a child process.
+    pub fn spawn<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Child, std::io::Error> {
+        self.setup_command(&self.bin).args(files).spawn()
+    }
+
+    /// Runs `p4 sync` for the given files to completion and captures its
+    /// output.
+    pub fn output<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Output, std::io::Error> {
+        self.setup_command(&self.bin)
+            .args(files)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+    }
+
+    /// # Description
+    ///
+    /// g-opts
+    ///
+    /// See [Global options](GlobalOpts).
+    pub fn get_global_opts(&self) -> &GlobalOpts {
+        &self.global_opts
+    }
+
+    /// # Description
+    ///
+    /// g-opts
+    ///
+    /// See [Global options](GlobalOpts).
+    pub fn set_global_opts(&mut self, v: GlobalOpts) -> &mut Self {
+        self.global_opts = v;
+        self
+    }
+
+    /// # Description
+    ///
+    /// g-opts
+    ///
+    /// See [Global options](GlobalOpts).
+    pub fn global_opts(mut self, v: GlobalOpts) -> Self {
+        self.global_opts = v;
+        self
+    }
+}
+
+impl<M: ExclusiveOption> SubCommand for Sync<M> {
+    fn name(&self) -> &str {
+        "sync"
+    }
+
+    fn inject_local_args(&self, command: &mut Command) {
+        self.mode.inject_args(command);
+    }
+
+    fn global_opts(&self) -> Option<&GlobalOpts> {
+        Some(&self.global_opts)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::cmd::args_of;
+
+    #[test]
+    fn without_options() {
+        let sync = Sync::new("p4", GlobalOpts::new());
+
+        assert_eq!(args_of(&sync.setup_command("p4")), ["sync"]);
+    }
+
+    #[test]
+    fn sync_time_mode() {
+        let sync = Sync::new("p4", GlobalOpts::new()).sync_time("2024/01/01");
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "-k", "--sync-time=2024/01/01"]
+        );
+    }
+
+    #[test]
+    fn sync_time_mode_epoch() {
+        let sync = Sync::new("p4", GlobalOpts::new()).sync_time("1700000000");
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "-k", "--sync-time=1700000000"]
+        );
+    }
+
+    #[test]
+    fn sync_time_set_style() {
+        let mut sync = Sync::new("p4", GlobalOpts::new()).sync_time("2024/01/01");
+        sync.set_sync_time("2024/06/01");
+
+        assert_eq!(sync.get_sync_time(), "2024/06/01");
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "-k", "--sync-time=2024/06/01"]
+        );
+    }
+
+    #[test]
+    fn regular_mode_common_options() {
+        let sync = Sync::new("p4", GlobalOpts::new())
+            .verify_edge_replication(true)
+            .script_list_mode(true)
+            .suppress_keyword_expansion(true)
+            .quiet_mode(true)
+            .limit(5);
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "-E", "-L", "-K", "-q", "-m", "5"]
+        );
+    }
+
+    #[test]
+    fn regular_mode_force_options() {
+        let sync = Sync::new("p4", GlobalOpts::new())
+            .force(true)
+            .metadata_only(true)
+            .reopen_moved_files(true);
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "-f", "-k", "-r"]
+        );
+    }
+
+    #[test]
+    fn regular_mode_combined() {
+        let sync = Sync::new("p4", GlobalOpts::new())
+            .quiet_mode(true)
+            .force(true)
+            .limit(10);
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "-q", "-f", "-m", "10"]
+        );
+    }
+
+    #[test]
+    fn regular_mode_preview_result() {
+        let sync = Sync::new("p4", GlobalOpts::new()).preview_result();
+
+        assert_eq!(args_of(&sync.setup_command("p4")), ["sync", "-n"]);
+    }
+
+    #[test]
+    fn regular_mode_preview_network_traffic() {
+        let sync = Sync::new("p4", GlobalOpts::new()).preview_network_traffic();
+
+        assert_eq!(args_of(&sync.setup_command("p4")), ["sync", "-N"]);
+    }
+
+    #[test]
+    fn regular_mode_preview_with_options() {
+        let sync = Sync::new("p4", GlobalOpts::new())
+            .quiet_mode(true)
+            .preview_result()
+            .limit(3);
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "-q", "-n", "-m", "3"]
+        );
+    }
+
+    #[test]
+    fn regular_mode_parallel() {
+        let sync = Sync::new("p4", GlobalOpts::new()).parallel(ParallelConfig {
+            threads: 4,
+            batch_files: Some(8),
+            batch_size_bytes: None,
+            min_files: Some(9),
+            min_size_bytes: None,
+        });
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "--parallel=threads=4,batch=8,min=9"]
+        );
+    }
+
+    #[test]
+    fn regular_mode_stream_spec_auto() {
+        let sync = Sync::new("p4", GlobalOpts::new())
+            .stream_spec_version(StreamSpecVersion::MaxInFilelists);
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "--use-stream-change"]
+        );
+    }
+
+    #[test]
+    fn regular_mode_stream_spec_current() {
+        let sync =
+            Sync::new("p4", GlobalOpts::new()).stream_spec_version(StreamSpecVersion::Current);
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "--use-stream-change=0"]
+        );
+    }
+
+    #[test]
+    fn regular_mode_stream_spec_specific() {
+        let sync = Sync::new("p4", GlobalOpts::new())
+            .stream_spec_version(StreamSpecVersion::ChangeNumber(123));
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "--use-stream-change=123"]
+        );
+    }
+
+    #[test]
+    fn safe_check_mode() {
+        let sync = Sync::new("p4", GlobalOpts::new()).enable_safe_check();
+
+        assert_eq!(args_of(&sync.setup_command("p4")), ["sync", "-s"]);
+    }
+
+    #[test]
+    fn safe_check_mode_with_options() {
+        let sync = Sync::new("p4", GlobalOpts::new())
+            .enable_safe_check()
+            .quiet_mode(true)
+            .limit(5);
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "-q", "-s", "-m", "5"]
+        );
+    }
+
+    #[test]
+    fn populate_mode() {
+        let sync = Sync::new("p4", GlobalOpts::new()).populate_client_workspace();
+
+        assert_eq!(args_of(&sync.setup_command("p4")), ["sync", "-p"]);
+    }
+
+    #[test]
+    fn populate_mode_with_options() {
+        let sync = Sync::new("p4", GlobalOpts::new())
+            .populate_client_workspace()
+            .quiet_mode(true)
+            .limit(5);
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "-q", "-p", "-m", "5"]
+        );
+    }
+
+    #[test]
+    fn transition_to_safe_check_from_regular() {
+        let sync = Sync::new("p4", GlobalOpts::new())
+            .quiet_mode(true)
+            .limit(5)
+            .safe_check();
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "-q", "-s", "-m", "5"]
+        );
+    }
+
+    #[test]
+    fn transition_to_populate_from_regular() {
+        let sync = Sync::new("p4", GlobalOpts::new())
+            .quiet_mode(true)
+            .limit(5)
+            .populate();
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "-q", "-p", "-m", "5"]
+        );
+    }
+
+    #[test]
+    fn transition_preserves_preview() {
+        let sync = Sync::new("p4", GlobalOpts::new())
+            .preview_result()
+            .quiet_mode(true)
+            .safe_check();
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            ["sync", "-q", "-s", "-n"]
+        );
+    }
+
+    #[test]
+    fn force_mode_blocks_safe_check() {
+        // Once in ForceRegularMode, safe_check/populate are unavailable at
+        // compile time. This test just exercises force mode injection.
+        let sync = Sync::new("p4", GlobalOpts::new())
+            .force(true)
+            .quiet_mode(true);
+
+        assert_eq!(args_of(&sync.setup_command("p4")), ["sync", "-q", "-f"]);
+    }
+
+    #[test]
+    fn all_regular_options_order() {
+        let sync = Sync::new("p4", GlobalOpts::new())
+            .verify_edge_replication(true)
+            .script_list_mode(true)
+            .suppress_keyword_expansion(true)
+            .quiet_mode(true)
+            .force(true)
+            .metadata_only(true)
+            .reopen_moved_files(true)
+            .limit(5)
+            .parallel(ParallelConfig {
+                threads: 2,
+                batch_files: None,
+                batch_size_bytes: None,
+                min_files: None,
+                min_size_bytes: None,
+            })
+            .stream_spec_version(StreamSpecVersion::Current);
+
+        assert_eq!(
+            args_of(&sync.setup_command("p4")),
+            [
+                "sync",
+                "-E",
+                "-L",
+                "-K",
+                "-q",
+                "-f",
+                "-k",
+                "-r",
+                "-m",
+                "5",
+                "--parallel=threads=2",
+                "--use-stream-change=0",
+            ]
+        );
+    }
 }
