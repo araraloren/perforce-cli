@@ -505,14 +505,14 @@ impl Sync<Unselected> {
     /// file list determines the stream spec version.
     ///
     /// Transitions this command to the [`RegularMode`] state.
-    pub fn stream_change(self) -> Sync<RegularMode> {
+    pub fn sc_max_change_number(self) -> Sync<RegularMode> {
         self.stream_spec_version(StreamSpecVersion::MaxInFilelists)
     }
 
     /// `--use-stream-change=0`: use the current stream spec version.
     ///
     /// Transitions this command to the [`RegularMode`] state.
-    pub fn stream_change_current(self) -> Sync<RegularMode> {
+    pub fn sc_current_stream_spec(self) -> Sync<RegularMode> {
         self.stream_spec_version(StreamSpecVersion::Current)
     }
 
@@ -520,7 +520,7 @@ impl Sync<Unselected> {
     /// change `n`.
     ///
     /// Transitions this command to the [`RegularMode`] state.
-    pub fn stream_change_at(self, n: u32) -> Sync<RegularMode> {
+    pub fn sc_change_number(self, n: u32) -> Sync<RegularMode> {
         self.stream_spec_version(StreamSpecVersion::ChangeNumber(n))
     }
 
@@ -761,40 +761,40 @@ impl<Mode: ExclusiveOption, P: ExclusiveOption> Sync<RegularMode<Mode, P>> {
 
     /// `--use-stream-change` (no value): the maximum change number in the
     /// file list determines the stream spec version.
-    pub fn set_stream_change(&mut self) -> &mut Self {
+    pub fn set_sc_max_change_number(&mut self) -> &mut Self {
         self.mode.stream_spec_version = Some(StreamSpecVersion::MaxInFilelists);
         self
     }
 
     /// `--use-stream-change` (no value): the maximum change number in the
     /// file list determines the stream spec version.
-    pub fn stream_change(mut self) -> Self {
+    pub fn sc_max_change_number(mut self) -> Self {
         self.mode.stream_spec_version = Some(StreamSpecVersion::MaxInFilelists);
         self
     }
 
     /// `--use-stream-change=0`: use the current stream spec version.
-    pub fn set_stream_change_current(&mut self) -> &mut Self {
+    pub fn set_sc_current_stream_spec(&mut self) -> &mut Self {
         self.mode.stream_spec_version = Some(StreamSpecVersion::Current);
         self
     }
 
     /// `--use-stream-change=0`: use the current stream spec version.
-    pub fn stream_change_current(mut self) -> Self {
+    pub fn sc_current_stream_spec(mut self) -> Self {
         self.mode.stream_spec_version = Some(StreamSpecVersion::Current);
         self
     }
 
     /// `--use-stream-change=N`: use the stream spec version at or before
     /// change `n`.
-    pub fn set_stream_change_at(&mut self, n: u32) -> &mut Self {
+    pub fn set_sc_change_number(&mut self, n: u32) -> &mut Self {
         self.mode.stream_spec_version = Some(StreamSpecVersion::ChangeNumber(n));
         self
     }
 
     /// `--use-stream-change=N`: use the stream spec version at or before
     /// change `n`.
-    pub fn stream_change_at(mut self, n: u32) -> Self {
+    pub fn sc_change_number(mut self, n: u32) -> Self {
         self.mode.stream_spec_version = Some(StreamSpecVersion::ChangeNumber(n));
         self
     }
