@@ -1,21 +1,25 @@
 [package]
 name = "perforce-cli"
+version = "0.1.0-alpha.1"
 edition = "2024"
-version = "0.1.0"
 authors = [
   "araraloren <blackcatoverwall@gmail.com>",
 ]
 license = "MPL-2.0"
-description = ""
+description = "A type-safe builder library for spawning Perforce (p4) commands, with compile-time option state isolation and multi-version support."
+readme = "README.md"
 repository = "https://github.com/araraloren/perforce-cli"
+documentation = "https://docs.rs/perforce-cli"
 keywords = [
   "perforce",
-  "cli",
   "p4",
-  "version-control"
+  "cli",
+  "version-control",
+  "builder",
 ]
 categories = [
   "command-line-interface",
+  "development-tools",
 ]
 
 [dependencies]
