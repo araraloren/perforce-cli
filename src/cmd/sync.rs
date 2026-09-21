@@ -142,6 +142,7 @@ pub struct ForceRegularMode {
 
     metadata_only: bool,
 
+    #[cfg(not(feature = "lt2015_1"))]
     reopen_moved_files: bool,
 }
 
@@ -155,6 +156,7 @@ impl ExclusiveOption for ForceRegularMode {
             command.arg("-k");
         }
 
+        #[cfg(not(feature = "lt2015_1"))]
         if self.reopen_moved_files {
             command.arg("-r");
         }
@@ -204,10 +206,12 @@ impl ExclusiveOption for PopulateMode {
 /// [`PreviewResult`] or [`PreviewNetworkTraffic`] otherwise).
 #[derive(Debug, Clone, Default)]
 pub struct RegularMode<Mode = Unselected, P = Unselected> {
+    #[cfg(not(feature = "lt2022_2"))]
     verify_edge_replication: bool,
 
     script_list_mode: bool,
 
+    #[cfg(not(feature = "lt2022_1"))]
     suppress_keyword_expansion: bool,
 
     quiet_mode: bool,
@@ -216,6 +220,7 @@ pub struct RegularMode<Mode = Unselected, P = Unselected> {
 
     parallel: Option<ParallelConfig>,
 
+    #[cfg(not(feature = "lt2022_2"))]
     stream_spec_version: Option<StreamSpecVersion>,
 
     mode: Mode,
@@ -225,6 +230,7 @@ pub struct RegularMode<Mode = Unselected, P = Unselected> {
 
 impl<Mode: ExclusiveOption, P: ExclusiveOption> ExclusiveOption for RegularMode<Mode, P> {
     fn inject_args(&self, command: &mut Command) {
+        #[cfg(not(feature = "lt2022_2"))]
         if self.verify_edge_replication {
             command.arg("-E");
         }
@@ -233,6 +239,7 @@ impl<Mode: ExclusiveOption, P: ExclusiveOption> ExclusiveOption for RegularMode<
             command.arg("-L");
         }
 
+        #[cfg(not(feature = "lt2022_1"))]
         if self.suppress_keyword_expansion {
             command.arg("-K");
         }
@@ -253,6 +260,7 @@ impl<Mode: ExclusiveOption, P: ExclusiveOption> ExclusiveOption for RegularMode<
             command.arg(format!("--parallel={}", parallel.as_arg()));
         }
 
+        #[cfg(not(feature = "lt2022_2"))]
         if let Some(version) = &self.stream_spec_version {
             version.inject_arg(command);
         }
@@ -265,11 +273,13 @@ impl<Mode: ExclusiveOption, P: ExclusiveOption> ExclusiveOption for RegularMode<
 ///
 /// Entered with [`Sync::sync_time`]. This mode always implies `-k` (metadata
 /// only), so no separate interface is provided for it.
+#[cfg(not(feature = "lt2025_1"))]
 #[derive(Debug, Clone)]
 pub struct SyncTimeMode {
     sync_time: String,
 }
 
+#[cfg(not(feature = "lt2025_1"))]
 impl ExclusiveOption for SyncTimeMode {
     fn inject_args(&self, command: &mut Command) {
         command
@@ -311,11 +321,21 @@ impl Sync<Unselected> {
     /// `-k --sync-time=N`
     ///
     /// Update the have list to reflect the state of the depot at the given
-    /// time without transferring files. The value of `N` can be Unix epoch
-    /// time or the Perforce date time format.
+    /// time without transferring files.
+    #[cfg_attr(
+        all(feature = "lt2025_2", not(feature = "lt2025_1")),
+        doc = "The value of `N` can be Unix epoch time or the perforce date",
+        doc = "time format."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2025_2"),
+        doc = "The value of `N` can be Unix epoch time or the Perforce date",
+        doc = "time format."
+    )]
     ///
     /// This mode always implies `-k`, so no separate interface is provided
     /// for it. Transitions this command to the [`SyncTimeMode`] state.
+    #[cfg(not(feature = "lt2025_1"))]
     pub fn sync_time(self, time: impl Into<String>) -> Sync<SyncTimeMode> {
         Sync {
             bin: self.bin,
@@ -331,9 +351,29 @@ impl Sync<Unselected> {
     /// `-s`
     ///
     /// Safe sync: compare the content in the client workspace against what
-    /// was last synced. If the file was modified outside of the control of
-    /// P4 Server, an error message is displayed and the file is not
-    /// overwritten.
+    /// was last synced.
+    #[cfg_attr(
+        feature = "lt2017_2",
+        doc = "If the file was modified outside of Perforce control, an error",
+        doc = "message is displayed and the file is not overwritten."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2017_2")),
+        doc = "If the file was modified outside of the control of Helix",
+        doc = "Server, an error message is displayed and the file is not",
+        doc = "overwritten."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_2", not(feature = "lt2024_1")),
+        doc = "If the file was modified outside of the control of Helix Core",
+        doc = "Server, an error message is displayed and the file is not",
+        doc = "overwritten."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_2"),
+        doc = "If the file was modified outside of the control of P4 Server,",
+        doc = "an error message is displayed and the file is not overwritten."
+    )]
     ///
     /// Transitions this command to the [`RegularMode`] state with the
     /// [`SafeCheckMode`] sub-mode.
@@ -378,6 +418,7 @@ impl Sync<Unselected> {
     /// continuing with the sync.
     ///
     /// Transitions this command to the [`RegularMode`] state.
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn verify_edge_replication(self, v: bool) -> Sync<RegularMode> {
         Sync {
             bin: self.bin,
@@ -395,6 +436,16 @@ impl Sync<Unselected> {
     ///
     /// For scripting purposes, perform the sync on a list of valid file
     /// arguments in full depot syntax with a valid revision number.
+    #[cfg_attr(
+        not(feature = "lt2016_1"),
+        doc = "",
+        doc = "When this flag is used, the arguments are processed together by",
+        doc = "building an internal table similar to a label. This file list",
+        doc = "processing is significantly faster than having to call the",
+        doc = "internal query engine for each individual file argument. However,",
+        doc = "the file argument syntax is strict and the command will not run",
+        doc = "if an error is encountered."
+    )]
     ///
     /// Transitions this command to the [`RegularMode`] state.
     pub fn script_list_mode(self, v: bool) -> Sync<RegularMode> {
@@ -414,8 +465,14 @@ impl Sync<Unselected> {
     ///
     /// Suppress keyword expansion when updating `+k` type files on the
     /// client.
+    #[cfg_attr(feature = "lt2024_2", doc = "See File type modifiers.")]
+    #[cfg_attr(
+        not(feature = "lt2024_2"),
+        doc = "To learn more, see File type modifiers."
+    )]
     ///
     /// Transitions this command to the [`RegularMode`] state.
+    #[cfg(not(feature = "lt2022_1"))]
     pub fn suppress_keyword_expansion(self, v: bool) -> Sync<RegularMode> {
         Sync {
             bin: self.bin,
@@ -451,6 +508,13 @@ impl Sync<Unselected> {
     /// `-m max`
     ///
     /// Sync only the first `max` files specified.
+    #[cfg_attr(
+        not(feature = "lt2022_2"),
+        doc = "",
+        doc = "This option is useful in conjunction with tagged output and the",
+        doc = "`-n` flag, to preview how many files will be synced without",
+        doc = "transferring all the file data."
+    )]
     ///
     /// Transitions this command to the [`RegularMode`] state.
     pub fn limit(self, v: u64) -> Sync<RegularMode> {
@@ -490,6 +554,7 @@ impl Sync<Unselected> {
     /// client view for sync.
     ///
     /// Transitions this command to the [`RegularMode`] state.
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn stream_spec_version(self, v: StreamSpecVersion) -> Sync<RegularMode> {
         Sync {
             bin: self.bin,
@@ -505,6 +570,7 @@ impl Sync<Unselected> {
     /// file list determines the stream spec version.
     ///
     /// Transitions this command to the [`RegularMode`] state.
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn sc_max_change_number(self) -> Sync<RegularMode> {
         self.stream_spec_version(StreamSpecVersion::MaxInFilelists)
     }
@@ -512,6 +578,7 @@ impl Sync<Unselected> {
     /// `--use-stream-change=0`: use the current stream spec version.
     ///
     /// Transitions this command to the [`RegularMode`] state.
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn sc_current_stream_spec(self) -> Sync<RegularMode> {
         self.stream_spec_version(StreamSpecVersion::Current)
     }
@@ -520,6 +587,7 @@ impl Sync<Unselected> {
     /// change `n`.
     ///
     /// Transitions this command to the [`RegularMode`] state.
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn sc_change_number(self, n: u32) -> Sync<RegularMode> {
         self.stream_spec_version(StreamSpecVersion::ChangeNumber(n))
     }
@@ -528,8 +596,19 @@ impl Sync<Unselected> {
     ///
     /// `-n`
     ///
-    /// Preview mode: display the results of the sync without actually
-    /// performing the sync.
+    #[cfg_attr(
+        feature = "lt2016_1",
+        doc = "Display the results of the sync without actually performing the",
+        doc = "sync.",
+        doc = "",
+        doc = "This lets you make sure that the sync does what you think it",
+        doc = "does before you do it."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2016_1"),
+        doc = "Preview mode: display the results of the sync without actually",
+        doc = "performing the sync."
+    )]
     ///
     /// Transitions this command to the [`RegularMode`] state with the
     /// [`PreviewResult`] preview mode.
@@ -548,8 +627,25 @@ impl Sync<Unselected> {
     ///
     /// `-N`
     ///
-    /// Preview mode: display a summary of the expected network traffic
-    /// associated with a sync, without performing the sync.
+    #[cfg_attr(
+        feature = "lt2016_1",
+        doc = "Display a summary of the expected network traffic associated",
+        doc = "with a sync, without performing the sync."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Preview mode: display a summary of the expected network traffic",
+        doc = "associated with a sync, without performing the sync."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2021_2"),
+        doc = "Preview mode: display a summary of the expected network traffic",
+        doc = "associated with a sync, without performing the sync.",
+        doc = "",
+        doc = "This tells you how many files are to be added or updated, which",
+        doc = "is useful if there are many large files, limits on bandwidth, or",
+        doc = "limits on disk space."
+    )]
     ///
     /// Transitions this command to the [`RegularMode`] state with the
     /// [`PreviewNetworkTraffic`] preview mode.
@@ -568,8 +664,51 @@ impl Sync<Unselected> {
     ///
     /// `-f`
     ///
-    /// Force the sync. P4 Server performs the sync even if the client
-    /// workspace already has the file at the specified revision.
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "Force the sync. Perforce performs the sync even if the client",
+        doc = "workspace already has the file at the specified revision. If the",
+        doc = "file is writable, it is overwritten.",
+        doc = "",
+        doc = "This flag does not affect open files, but it does override the",
+        doc = "noclobber client option."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2017_2", not(feature = "lt2014_2")),
+        doc = "Force the sync. Perforce performs the sync even if the client",
+        doc = "workspace already has the file at the specified revision. If the",
+        doc = "file is writable, it is overwritten.",
+        doc = "",
+        doc = "This option does not affect open files, but it does override the",
+        doc = "noclobber client option."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2017_2")),
+        doc = "Force the sync. Helix Server performs the sync even if the",
+        doc = "client workspace already has the file at the specified",
+        doc = "revision. If the file is writable, it is overwritten.",
+        doc = "",
+        doc = "This option does not affect open files, but it does override the",
+        doc = "noclobber client option (see p4 client)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_2", not(feature = "lt2024_1")),
+        doc = "Force the sync. Helix Core Server performs the sync even if the",
+        doc = "client workspace already has the file at the specified",
+        doc = "revision. If the file is writable, it is overwritten.",
+        doc = "",
+        doc = "This option does not affect open files, but it does override the",
+        doc = "noclobber client option (see p4 client)."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_2"),
+        doc = "Force the sync. P4 Server performs the sync even if the client",
+        doc = "workspace already has the file at the specified revision. If the",
+        doc = "file is writable, it is overwritten.",
+        doc = "",
+        doc = "This option does not affect open files, but it does override the",
+        doc = "noclobber client option (see p4 client)."
+    )]
     ///
     /// Transitions this command to the [`RegularMode`] state with the
     /// [`ForceRegularMode`] sub-mode, which prevents further transitions to
@@ -592,8 +731,17 @@ impl Sync<Unselected> {
     ///
     /// `-k`
     ///
-    /// Update server metadata without syncing files. Keep existing workspace
-    /// files and update the have list without updating the client workspace.
+    #[cfg_attr(
+        feature = "lt2022_2",
+        doc = "Keep existing workspace files; update the have list without",
+        doc = "updating the client workspace."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2022_2"),
+        doc = "Update server metadata without syncing files. Keep existing",
+        doc = "workspace files and update the have list without updating the",
+        doc = "client workspace."
+    )]
     ///
     /// Transitions this command to the [`RegularMode`] state with the
     /// [`ForceRegularMode`] sub-mode, which prevents further transitions to
@@ -622,6 +770,7 @@ impl Sync<Unselected> {
     /// Transitions this command to the [`RegularMode`] state with the
     /// [`ForceRegularMode`] sub-mode, which prevents further transitions to
     /// [`SafeCheckMode`] or [`PopulateMode`].
+    #[cfg(not(feature = "lt2015_1"))]
     pub fn reopen_moved_files(self, v: bool) -> Sync<RegularMode<ForceRegularMode>> {
         Sync {
             bin: self.bin,
@@ -641,17 +790,20 @@ impl Sync<Unselected> {
 
 impl<Mode: ExclusiveOption, P: ExclusiveOption> Sync<RegularMode<Mode, P>> {
     /// Returns whether edge replication is verified (`-E`).
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn get_verify_edge_replication(&self) -> bool {
         self.mode.verify_edge_replication
     }
 
     /// Sets whether edge replication is verified (`-E`).
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn set_verify_edge_replication(&mut self, v: bool) -> &mut Self {
         self.mode.verify_edge_replication = v;
         self
     }
 
     /// Sets whether edge replication is verified (`-E`).
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn verify_edge_replication(mut self, v: bool) -> Self {
         self.mode.verify_edge_replication = v;
         self
@@ -675,17 +827,20 @@ impl<Mode: ExclusiveOption, P: ExclusiveOption> Sync<RegularMode<Mode, P>> {
     }
 
     /// Returns whether keyword expansion is suppressed (`-K`).
+    #[cfg(not(feature = "lt2022_1"))]
     pub fn get_suppress_keyword_expansion(&self) -> bool {
         self.mode.suppress_keyword_expansion
     }
 
     /// Sets whether keyword expansion is suppressed (`-K`).
+    #[cfg(not(feature = "lt2022_1"))]
     pub fn set_suppress_keyword_expansion(&mut self, v: bool) -> &mut Self {
         self.mode.suppress_keyword_expansion = v;
         self
     }
 
     /// Sets whether keyword expansion is suppressed (`-K`).
+    #[cfg(not(feature = "lt2022_1"))]
     pub fn suppress_keyword_expansion(mut self, v: bool) -> Self {
         self.mode.suppress_keyword_expansion = v;
         self
@@ -743,17 +898,20 @@ impl<Mode: ExclusiveOption, P: ExclusiveOption> Sync<RegularMode<Mode, P>> {
     }
 
     /// Returns the stream spec version (`--use-stream-change`).
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn get_stream_spec_version(&self) -> Option<StreamSpecVersion> {
         self.mode.stream_spec_version
     }
 
     /// Sets the stream spec version (`--use-stream-change`).
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn set_stream_spec_version(&mut self, v: StreamSpecVersion) -> &mut Self {
         self.mode.stream_spec_version = Some(v);
         self
     }
 
     /// Sets the stream spec version (`--use-stream-change`).
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn stream_spec_version(mut self, v: StreamSpecVersion) -> Self {
         self.mode.stream_spec_version = Some(v);
         self
@@ -761,6 +919,7 @@ impl<Mode: ExclusiveOption, P: ExclusiveOption> Sync<RegularMode<Mode, P>> {
 
     /// `--use-stream-change` (no value): the maximum change number in the
     /// file list determines the stream spec version.
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn set_sc_max_change_number(&mut self) -> &mut Self {
         self.mode.stream_spec_version = Some(StreamSpecVersion::MaxInFilelists);
         self
@@ -768,18 +927,21 @@ impl<Mode: ExclusiveOption, P: ExclusiveOption> Sync<RegularMode<Mode, P>> {
 
     /// `--use-stream-change` (no value): the maximum change number in the
     /// file list determines the stream spec version.
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn sc_max_change_number(mut self) -> Self {
         self.mode.stream_spec_version = Some(StreamSpecVersion::MaxInFilelists);
         self
     }
 
     /// `--use-stream-change=0`: use the current stream spec version.
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn set_sc_current_stream_spec(&mut self) -> &mut Self {
         self.mode.stream_spec_version = Some(StreamSpecVersion::Current);
         self
     }
 
     /// `--use-stream-change=0`: use the current stream spec version.
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn sc_current_stream_spec(mut self) -> Self {
         self.mode.stream_spec_version = Some(StreamSpecVersion::Current);
         self
@@ -787,6 +949,7 @@ impl<Mode: ExclusiveOption, P: ExclusiveOption> Sync<RegularMode<Mode, P>> {
 
     /// `--use-stream-change=N`: use the stream spec version at or before
     /// change `n`.
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn set_sc_change_number(&mut self, n: u32) -> &mut Self {
         self.mode.stream_spec_version = Some(StreamSpecVersion::ChangeNumber(n));
         self
@@ -794,6 +957,7 @@ impl<Mode: ExclusiveOption, P: ExclusiveOption> Sync<RegularMode<Mode, P>> {
 
     /// `--use-stream-change=N`: use the stream spec version at or before
     /// change `n`.
+    #[cfg(not(feature = "lt2022_2"))]
     pub fn sc_change_number(mut self, n: u32) -> Self {
         self.mode.stream_spec_version = Some(StreamSpecVersion::ChangeNumber(n));
         self
@@ -807,8 +971,51 @@ impl<P: ExclusiveOption> Sync<RegularMode<Unselected, P>> {
     ///
     /// `-f`
     ///
-    /// Force the sync. P4 Server performs the sync even if the client
-    /// workspace already has the file at the specified revision.
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "Force the sync. Perforce performs the sync even if the client",
+        doc = "workspace already has the file at the specified revision. If the",
+        doc = "file is writable, it is overwritten.",
+        doc = "",
+        doc = "This flag does not affect open files, but it does override the",
+        doc = "noclobber client option."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2017_2", not(feature = "lt2014_2")),
+        doc = "Force the sync. Perforce performs the sync even if the client",
+        doc = "workspace already has the file at the specified revision. If the",
+        doc = "file is writable, it is overwritten.",
+        doc = "",
+        doc = "This option does not affect open files, but it does override the",
+        doc = "noclobber client option."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2017_2")),
+        doc = "Force the sync. Helix Server performs the sync even if the",
+        doc = "client workspace already has the file at the specified",
+        doc = "revision. If the file is writable, it is overwritten.",
+        doc = "",
+        doc = "This option does not affect open files, but it does override the",
+        doc = "noclobber client option (see p4 client)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_2", not(feature = "lt2024_1")),
+        doc = "Force the sync. Helix Core Server performs the sync even if the",
+        doc = "client workspace already has the file at the specified",
+        doc = "revision. If the file is writable, it is overwritten.",
+        doc = "",
+        doc = "This option does not affect open files, but it does override the",
+        doc = "noclobber client option (see p4 client)."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_2"),
+        doc = "Force the sync. P4 Server performs the sync even if the client",
+        doc = "workspace already has the file at the specified revision. If the",
+        doc = "file is writable, it is overwritten.",
+        doc = "",
+        doc = "This option does not affect open files, but it does override the",
+        doc = "noclobber client option (see p4 client)."
+    )]
     ///
     /// Transitions the sub-mode to [`ForceRegularMode`], which prevents
     /// further transitions to [`SafeCheckMode`] or [`PopulateMode`].
@@ -817,12 +1024,15 @@ impl<P: ExclusiveOption> Sync<RegularMode<Unselected, P>> {
             bin: self.bin,
             global_opts: self.global_opts,
             mode: RegularMode {
+                #[cfg(not(feature = "lt2022_2"))]
                 verify_edge_replication: self.mode.verify_edge_replication,
                 script_list_mode: self.mode.script_list_mode,
+                #[cfg(not(feature = "lt2022_1"))]
                 suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
                 quiet_mode: self.mode.quiet_mode,
                 limit: self.mode.limit,
                 parallel: self.mode.parallel,
+                #[cfg(not(feature = "lt2022_2"))]
                 stream_spec_version: self.mode.stream_spec_version,
                 mode: ForceRegularMode {
                     force: v,
@@ -837,8 +1047,17 @@ impl<P: ExclusiveOption> Sync<RegularMode<Unselected, P>> {
     ///
     /// `-k`
     ///
-    /// Update server metadata without syncing files. Keep existing workspace
-    /// files and update the have list without updating the client workspace.
+    #[cfg_attr(
+        feature = "lt2022_2",
+        doc = "Keep existing workspace files; update the have list without",
+        doc = "updating the client workspace."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2022_2"),
+        doc = "Update server metadata without syncing files. Keep existing",
+        doc = "workspace files and update the have list without updating the",
+        doc = "client workspace."
+    )]
     ///
     /// Transitions the sub-mode to [`ForceRegularMode`], which prevents
     /// further transitions to [`SafeCheckMode`] or [`PopulateMode`].
@@ -847,12 +1066,15 @@ impl<P: ExclusiveOption> Sync<RegularMode<Unselected, P>> {
             bin: self.bin,
             global_opts: self.global_opts,
             mode: RegularMode {
+                #[cfg(not(feature = "lt2022_2"))]
                 verify_edge_replication: self.mode.verify_edge_replication,
                 script_list_mode: self.mode.script_list_mode,
+                #[cfg(not(feature = "lt2022_1"))]
                 suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
                 quiet_mode: self.mode.quiet_mode,
                 limit: self.mode.limit,
                 parallel: self.mode.parallel,
+                #[cfg(not(feature = "lt2022_2"))]
                 stream_spec_version: self.mode.stream_spec_version,
                 mode: ForceRegularMode {
                     metadata_only: v,
@@ -872,17 +1094,21 @@ impl<P: ExclusiveOption> Sync<RegularMode<Unselected, P>> {
     ///
     /// Transitions the sub-mode to [`ForceRegularMode`], which prevents
     /// further transitions to [`SafeCheckMode`] or [`PopulateMode`].
+    #[cfg(not(feature = "lt2015_1"))]
     pub fn reopen_moved_files(self, v: bool) -> Sync<RegularMode<ForceRegularMode, P>> {
         Sync {
             bin: self.bin,
             global_opts: self.global_opts,
             mode: RegularMode {
+                #[cfg(not(feature = "lt2022_2"))]
                 verify_edge_replication: self.mode.verify_edge_replication,
                 script_list_mode: self.mode.script_list_mode,
+                #[cfg(not(feature = "lt2022_1"))]
                 suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
                 quiet_mode: self.mode.quiet_mode,
                 limit: self.mode.limit,
                 parallel: self.mode.parallel,
+                #[cfg(not(feature = "lt2022_2"))]
                 stream_spec_version: self.mode.stream_spec_version,
                 mode: ForceRegularMode {
                     reopen_moved_files: v,
@@ -898,9 +1124,29 @@ impl<P: ExclusiveOption> Sync<RegularMode<Unselected, P>> {
     /// `-s`
     ///
     /// Safe sync: compare the content in the client workspace against what
-    /// was last synced. If the file was modified outside of the control of
-    /// P4 Server, an error message is displayed and the file is not
-    /// overwritten.
+    /// was last synced.
+    #[cfg_attr(
+        feature = "lt2017_2",
+        doc = "If the file was modified outside of Perforce control, an error",
+        doc = "message is displayed and the file is not overwritten."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2017_2")),
+        doc = "If the file was modified outside of the control of Helix",
+        doc = "Server, an error message is displayed and the file is not",
+        doc = "overwritten."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_2", not(feature = "lt2024_1")),
+        doc = "If the file was modified outside of the control of Helix Core",
+        doc = "Server, an error message is displayed and the file is not",
+        doc = "overwritten."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_2"),
+        doc = "If the file was modified outside of the control of P4 Server,",
+        doc = "an error message is displayed and the file is not overwritten."
+    )]
     ///
     /// Transitions the sub-mode to [`SafeCheckMode`].
     pub fn safe_check(self) -> Sync<RegularMode<SafeCheckMode, P>> {
@@ -908,12 +1154,15 @@ impl<P: ExclusiveOption> Sync<RegularMode<Unselected, P>> {
             bin: self.bin,
             global_opts: self.global_opts,
             mode: RegularMode {
+                #[cfg(not(feature = "lt2022_2"))]
                 verify_edge_replication: self.mode.verify_edge_replication,
                 script_list_mode: self.mode.script_list_mode,
+                #[cfg(not(feature = "lt2022_1"))]
                 suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
                 quiet_mode: self.mode.quiet_mode,
                 limit: self.mode.limit,
                 parallel: self.mode.parallel,
+                #[cfg(not(feature = "lt2022_2"))]
                 stream_spec_version: self.mode.stream_spec_version,
                 mode: SafeCheckMode,
                 preview: self.mode.preview,
@@ -935,12 +1184,15 @@ impl<P: ExclusiveOption> Sync<RegularMode<Unselected, P>> {
             bin: self.bin,
             global_opts: self.global_opts,
             mode: RegularMode {
+                #[cfg(not(feature = "lt2022_2"))]
                 verify_edge_replication: self.mode.verify_edge_replication,
                 script_list_mode: self.mode.script_list_mode,
+                #[cfg(not(feature = "lt2022_1"))]
                 suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
                 quiet_mode: self.mode.quiet_mode,
                 limit: self.mode.limit,
                 parallel: self.mode.parallel,
+                #[cfg(not(feature = "lt2022_2"))]
                 stream_spec_version: self.mode.stream_spec_version,
                 mode: PopulateMode,
                 preview: self.mode.preview,
@@ -956,19 +1208,35 @@ impl<Mode: ExclusiveOption> Sync<RegularMode<Mode, Unselected>> {
     ///
     /// `-n`
     ///
-    /// Preview mode: display the results of the sync without actually
-    /// performing the sync.
+    #[cfg_attr(
+        feature = "lt2016_1",
+        doc = "Display the results of the sync without actually performing the",
+        doc = "sync.",
+        doc = "",
+        doc = "This lets you make sure that the sync does what you think it",
+        doc = "does before you do it."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2016_1"),
+        doc = "Preview mode: display the results of the sync without actually",
+        doc = "performing the sync."
+    )]
+    ///
+    /// Transitions the preview mode to [`PreviewResult`].
     pub fn preview_result(self) -> Sync<RegularMode<Mode, PreviewResult>> {
         Sync {
             bin: self.bin,
             global_opts: self.global_opts,
             mode: RegularMode {
+                #[cfg(not(feature = "lt2022_2"))]
                 verify_edge_replication: self.mode.verify_edge_replication,
                 script_list_mode: self.mode.script_list_mode,
+                #[cfg(not(feature = "lt2022_1"))]
                 suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
                 quiet_mode: self.mode.quiet_mode,
                 limit: self.mode.limit,
                 parallel: self.mode.parallel,
+                #[cfg(not(feature = "lt2022_2"))]
                 stream_spec_version: self.mode.stream_spec_version,
                 mode: self.mode.mode,
                 preview: PreviewResult,
@@ -980,19 +1248,41 @@ impl<Mode: ExclusiveOption> Sync<RegularMode<Mode, Unselected>> {
     ///
     /// `-N`
     ///
-    /// Preview mode: display a summary of the expected network traffic
-    /// associated with a sync, without performing the sync.
+    #[cfg_attr(
+        feature = "lt2016_1",
+        doc = "Display a summary of the expected network traffic associated",
+        doc = "with a sync, without performing the sync."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Preview mode: display a summary of the expected network traffic",
+        doc = "associated with a sync, without performing the sync."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2021_2"),
+        doc = "Preview mode: display a summary of the expected network traffic",
+        doc = "associated with a sync, without performing the sync.",
+        doc = "",
+        doc = "This tells you how many files are to be added or updated, which",
+        doc = "is useful if there are many large files, limits on bandwidth, or",
+        doc = "limits on disk space."
+    )]
+    ///
+    /// Transitions the preview mode to [`PreviewNetworkTraffic`].
     pub fn preview_network_traffic(self) -> Sync<RegularMode<Mode, PreviewNetworkTraffic>> {
         Sync {
             bin: self.bin,
             global_opts: self.global_opts,
             mode: RegularMode {
+                #[cfg(not(feature = "lt2022_2"))]
                 verify_edge_replication: self.mode.verify_edge_replication,
                 script_list_mode: self.mode.script_list_mode,
+                #[cfg(not(feature = "lt2022_1"))]
                 suppress_keyword_expansion: self.mode.suppress_keyword_expansion,
                 quiet_mode: self.mode.quiet_mode,
                 limit: self.mode.limit,
                 parallel: self.mode.parallel,
+                #[cfg(not(feature = "lt2022_2"))]
                 stream_spec_version: self.mode.stream_spec_version,
                 mode: self.mode.mode,
                 preview: PreviewNetworkTraffic,
@@ -1039,17 +1329,20 @@ impl<P: ExclusiveOption> Sync<RegularMode<ForceRegularMode, P>> {
     }
 
     /// Returns whether moved files are reopened (`-r`).
+    #[cfg(not(feature = "lt2015_1"))]
     pub fn get_reopen_moved_files(&self) -> bool {
         self.mode.mode.reopen_moved_files
     }
 
     /// Sets whether moved files are reopened (`-r`).
+    #[cfg(not(feature = "lt2015_1"))]
     pub fn set_reopen_moved_files(&mut self, v: bool) -> &mut Self {
         self.mode.mode.reopen_moved_files = v;
         self
     }
 
     /// Sets whether moved files are reopened (`-r`).
+    #[cfg(not(feature = "lt2015_1"))]
     pub fn reopen_moved_files(mut self, v: bool) -> Self {
         self.mode.mode.reopen_moved_files = v;
         self
@@ -1058,6 +1351,7 @@ impl<P: ExclusiveOption> Sync<RegularMode<ForceRegularMode, P>> {
 
 // ---- SyncTimeMode accessors ----
 
+#[cfg(not(feature = "lt2025_1"))]
 impl Sync<SyncTimeMode> {
     /// Returns the sync time value (`--sync-time=N`).
     pub fn get_sync_time(&self) -> &str {
@@ -1103,7 +1397,23 @@ impl<M: ExclusiveOption> Sync<M> {
     ///
     /// g-opts
     ///
-    /// See [Global options](GlobalOpts).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "See the [Global Options](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "See the [“Global Options”](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2017_1", not(feature = "lt2015_1")),
+        doc = "See [“Global Options”](GlobalOpts)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2018_2", not(feature = "lt2017_1")),
+        doc = "See [Global Options](GlobalOpts)."
+    )]
+    #[cfg_attr(not(feature = "lt2018_2"), doc = "See [Global options](GlobalOpts).")]
     pub fn get_global_opts(&self) -> &GlobalOpts {
         &self.global_opts
     }
@@ -1112,7 +1422,23 @@ impl<M: ExclusiveOption> Sync<M> {
     ///
     /// g-opts
     ///
-    /// See [Global options](GlobalOpts).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "See the [Global Options](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "See the [“Global Options”](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2017_1", not(feature = "lt2015_1")),
+        doc = "See [“Global Options”](GlobalOpts)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2018_2", not(feature = "lt2017_1")),
+        doc = "See [Global Options](GlobalOpts)."
+    )]
+    #[cfg_attr(not(feature = "lt2018_2"), doc = "See [Global options](GlobalOpts).")]
     pub fn set_global_opts(&mut self, v: GlobalOpts) -> &mut Self {
         self.global_opts = v;
         self
@@ -1122,7 +1448,23 @@ impl<M: ExclusiveOption> Sync<M> {
     ///
     /// g-opts
     ///
-    /// See [Global options](GlobalOpts).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "See the [Global Options](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "See the [“Global Options”](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2017_1", not(feature = "lt2015_1")),
+        doc = "See [“Global Options”](GlobalOpts)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2018_2", not(feature = "lt2017_1")),
+        doc = "See [Global Options](GlobalOpts)."
+    )]
+    #[cfg_attr(not(feature = "lt2018_2"), doc = "See [Global options](GlobalOpts).")]
     pub fn global_opts(mut self, v: GlobalOpts) -> Self {
         self.global_opts = v;
         self
@@ -1156,6 +1498,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "lt2025_1"))]
     fn sync_time_mode() {
         let sync = Sync::new("p4", GlobalOpts::new()).sync_time("2024/01/01");
 
@@ -1166,6 +1509,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "lt2025_1"))]
     fn sync_time_mode_epoch() {
         let sync = Sync::new("p4", GlobalOpts::new()).sync_time("1700000000");
 
@@ -1176,6 +1520,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "lt2025_1"))]
     fn sync_time_set_style() {
         let mut sync = Sync::new("p4", GlobalOpts::new()).sync_time("2024/01/01");
         sync.set_sync_time("2024/06/01");
@@ -1190,15 +1535,23 @@ mod tests {
     #[test]
     fn regular_mode_common_options() {
         let sync = Sync::new("p4", GlobalOpts::new())
-            .verify_edge_replication(true)
             .script_list_mode(true)
-            .suppress_keyword_expansion(true)
             .quiet_mode(true)
             .limit(5);
 
+        #[cfg(not(feature = "lt2022_2"))]
+        {
+            let sync = sync.verify_edge_replication(true);
+            assert_eq!(
+                args_of(&sync.setup_command("p4")),
+                ["sync", "-E", "-L", "-q", "-m", "5"]
+            );
+        }
+
+        #[cfg(feature = "lt2022_2")]
         assert_eq!(
             args_of(&sync.setup_command("p4")),
-            ["sync", "-E", "-L", "-K", "-q", "-m", "5"]
+            ["sync", "-L", "-q", "-m", "5"]
         );
     }
 
@@ -1206,13 +1559,16 @@ mod tests {
     fn regular_mode_force_options() {
         let sync = Sync::new("p4", GlobalOpts::new())
             .force(true)
-            .metadata_only(true)
-            .reopen_moved_files(true);
+            .metadata_only(true);
 
-        assert_eq!(
-            args_of(&sync.setup_command("p4")),
-            ["sync", "-f", "-k", "-r"]
-        );
+        #[cfg(not(feature = "lt2015_1"))]
+        let sync = sync.reopen_moved_files(true);
+
+        let mut expected = vec!["sync", "-f", "-k"];
+        #[cfg(not(feature = "lt2015_1"))]
+        expected.push("-r");
+
+        assert_eq!(args_of(&sync.setup_command("p4")), expected);
     }
 
     #[test]
@@ -1272,6 +1628,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "lt2022_2"))]
     fn regular_mode_stream_spec_auto() {
         let sync = Sync::new("p4", GlobalOpts::new())
             .stream_spec_version(StreamSpecVersion::MaxInFilelists);
@@ -1283,6 +1640,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "lt2022_2"))]
     fn regular_mode_stream_spec_current() {
         let sync =
             Sync::new("p4", GlobalOpts::new()).stream_spec_version(StreamSpecVersion::Current);
@@ -1294,6 +1652,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "lt2022_2"))]
     fn regular_mode_stream_spec_specific() {
         let sync = Sync::new("p4", GlobalOpts::new())
             .stream_spec_version(StreamSpecVersion::ChangeNumber(123));
@@ -1397,13 +1756,10 @@ mod tests {
     #[test]
     fn all_regular_options_order() {
         let sync = Sync::new("p4", GlobalOpts::new())
-            .verify_edge_replication(true)
             .script_list_mode(true)
-            .suppress_keyword_expansion(true)
             .quiet_mode(true)
             .force(true)
             .metadata_only(true)
-            .reopen_moved_files(true)
             .limit(5)
             .parallel(ParallelConfig {
                 threads: 2,
@@ -1411,25 +1767,31 @@ mod tests {
                 batch_size_bytes: None,
                 min_files: None,
                 min_size_bytes: None,
-            })
-            .stream_spec_version(StreamSpecVersion::Current);
+            });
 
-        assert_eq!(
-            args_of(&sync.setup_command("p4")),
-            [
-                "sync",
-                "-E",
-                "-L",
-                "-K",
-                "-q",
-                "-f",
-                "-k",
-                "-r",
-                "-m",
-                "5",
-                "--parallel=threads=2",
-                "--use-stream-change=0",
-            ]
-        );
+        #[cfg(not(feature = "lt2022_2"))]
+        let sync = sync.verify_edge_replication(true);
+        #[cfg(not(feature = "lt2022_1"))]
+        let sync = sync.suppress_keyword_expansion(true);
+        #[cfg(not(feature = "lt2015_1"))]
+        let sync = sync.reopen_moved_files(true);
+        #[cfg(not(feature = "lt2022_2"))]
+        let sync = sync.stream_spec_version(StreamSpecVersion::Current);
+
+        let mut expected: Vec<&str> = vec!["sync", "-L", "-q", "-f", "-k"];
+        #[cfg(not(feature = "lt2022_2"))]
+        expected.insert(1, "-E");
+        #[cfg(not(feature = "lt2022_1"))]
+        {
+            let k = expected.iter().position(|&a| a == "-L").unwrap() + 1;
+            expected.insert(k, "-K");
+        }
+        #[cfg(not(feature = "lt2015_1"))]
+        expected.push("-r");
+        expected.extend(["-m", "5", "--parallel=threads=2"]);
+        #[cfg(not(feature = "lt2022_2"))]
+        expected.push("--use-stream-change=0");
+
+        assert_eq!(args_of(&sync.setup_command("p4")), expected);
     }
 }
