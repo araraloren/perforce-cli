@@ -1,7 +1,22 @@
 [package]
+name = "perforce-cli"
 edition = "2024"
-name = "p4cli"
 version = "0.1.0"
+authors = [
+  "araraloren <blackcatoverwall@gmail.com>",
+]
+license = "MPL-2.0"
+description = ""
+repository = "https://github.com/araraloren/perforce-cli"
+keywords = [
+  "perforce",
+  "cli",
+  "p4",
+  "version-control"
+]
+categories = [
+  "command-line-interface",
+]
 
 [dependencies]
 

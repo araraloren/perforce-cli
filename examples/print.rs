@@ -7,8 +7,8 @@
 //! cargo run --example print
 //! ```
 
-use p4cli::P4Cli;
-use p4cli::spawn::{ParameterizedOutput, ParameterizedSpawn};
+use perforce_cli::P4Cli;
+use perforce_cli::spawn::{ParameterizedOutput, ParameterizedSpawn};
 use std::ffi::OsStr;
 use std::path::Path;
 
