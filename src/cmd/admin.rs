@@ -515,9 +515,6 @@ impl<C: ExclusiveOption> ParameterizedSpawn for Admin<CheckPoint<C>> {
 }
 
 impl<C: ExclusiveOption> SpawnExt for Admin<CheckPoint<C>> {
-    type Output<'a> = Child;
-    type Error = std::io::Error;
-
     fn spawn<'a>(&mut self) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .stdout(Stdio::piped())
@@ -816,9 +813,6 @@ impl ParameterizedSpawn for Admin<Journal> {
 }
 
 impl SpawnExt for Admin<Journal> {
-    type Output<'a> = Child;
-    type Error = std::io::Error;
-
     fn spawn<'a>(&mut self) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .stdout(Stdio::piped())
