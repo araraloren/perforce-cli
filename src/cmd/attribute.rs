@@ -5,8 +5,10 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::{Child, Command, Output, Stdio};
 
-use crate::cmd::{ExclusiveOption, SubCommand, Unselected};
+use super::{ExclusiveOption, SubCommand, Unselected};
+
 use crate::global::GlobalOpts;
+use crate::spawn::ParameterizedSpawn;
 
 /// Default value source of `p4 attribute`: set or clear attributes with
 /// `-n name [-v value]` pairs.
@@ -180,29 +182,24 @@ impl Attribute<Standard, Unselected> {
     }
 }
 
-impl<T: ExclusiveOption> Attribute<Standard, T> {
-    /// Spawns `p4 attribute` for the given files as a child process.
-    ///
-    /// The child process inherits the standard input, output, and error
-    /// streams of the current process, and runs asynchronously; use the
-    /// returned [`Child`] handle to wait for it or interact with it.
-    pub fn spawn<F: AsRef<OsStr>>(&self, files: &[F]) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).args(files).spawn()
-    }
+impl<T: ExclusiveOption> ParameterizedSpawn for Attribute<Standard, T> {
+    type Input<'a> = &'a [&'a OsStr];
+    type Output<'a> = Child;
+    type Error = std::io::Error;
 
-    /// Runs `p4 attribute` for the given files to completion and captures
-    /// its output.
-    ///
-    /// Unlike [`Self::spawn`], this method blocks until the command exits and
-    /// collects the standard output and error into the returned [`Output`].
-    pub fn output<F: AsRef<OsStr>>(&self, files: &[F]) -> Result<Output, std::io::Error> {
+    /// Spawns `p4 attribute` for the given files as a child process with
+    /// piped standard output and error streams; use the returned [`Child`]
+    /// handle to wait for it or interact with it.
+    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()
+            .spawn()
     }
+}
 
+impl<T: ExclusiveOption> Attribute<Standard, T> {
     /// # Description
     ///
     /// -n name -v value
@@ -382,23 +379,12 @@ impl<T: ExclusiveOption> Attribute<FromStdin, T> {
         self
     }
 
-    /// Spawns `p4 attribute -i` for a single file with the given standard
-    /// input configuration.
-    ///
-    /// Pass `Stdio::piped()` to obtain a writable `child.stdin` handle and
-    /// write the attribute value yourself, then drop it before waiting on
-    /// the child. Only one file argument is allowed in the [`FromStdin`]
-    /// state.
-    pub fn spawn<S, I>(&self, stdin: I, file: S) -> Result<Child, std::io::Error>
-    where
-        S: AsRef<OsStr>,
-        I: Into<Stdio>,
-    {
-        self.setup_command(&self.bin).arg(file).stdin(stdin).spawn()
-    }
-
     /// Runs `p4 attribute -i` for a single file, writing `value` to the
     /// child's standard input, and captures the command's output.
+    ///
+    /// Unlike [`ParameterizedSpawn::spawn_with`], this method handles writing
+    /// the attribute value to the child's standard input itself, so it is the
+    /// most convenient way to submit values through standard input.
     ///
     /// Only one file argument is allowed in the [`FromStdin`] state.
     pub fn output<S, V>(&self, file: S, value: V) -> Result<Output, std::io::Error>
@@ -420,6 +406,30 @@ impl<T: ExclusiveOption> Attribute<FromStdin, T> {
         drop(child.stdin.take());
 
         child.wait_with_output()
+    }
+}
+
+impl<T: ExclusiveOption> ParameterizedSpawn for Attribute<FromStdin, T> {
+    type Input<'a> = (&'a OsStr, Stdio);
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 attribute -i` for a single file as a child process with the
+    /// given standard input configuration and piped standard output and error
+    /// streams; use the returned [`Child`] handle to wait for it or interact
+    /// with it.
+    ///
+    /// Pass `Stdio::piped()` to obtain a writable `child.stdin` handle and
+    /// write the attribute value yourself, then drop it before waiting on
+    /// the child. Only one file argument is allowed in the [`FromStdin`]
+    /// state.
+    fn spawn_with<'a>(&mut self, input: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+        self.setup_command(&self.bin)
+            .arg(input.0)
+            .stdin(input.1)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
     }
 }
 
@@ -462,24 +472,25 @@ impl<T: ExclusiveOption> Attribute<FromFile, T> {
     pub fn get_file(&self) -> &Path {
         &self.source.file
     }
+}
 
-    /// Spawns `p4 attribute -I` for a single file.
+#[cfg(not(feature = "lt2024_2"))]
+impl<T: ExclusiveOption> ParameterizedSpawn for Attribute<FromFile, T> {
+    type Input<'a> = &'a OsStr;
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 attribute -I` for a single file as a child process with
+    /// piped standard output and error streams; use the returned [`Child`]
+    /// handle to wait for it or interact with it.
     ///
     /// Only one file argument is allowed in the [`FromFile`] state.
-    pub fn spawn<S: AsRef<OsStr>>(&self, file: S) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).arg(file).spawn()
-    }
-
-    /// Runs `p4 attribute -I` for a single file to completion and captures
-    /// its output.
-    ///
-    /// Only one file argument is allowed in the [`FromFile`] state.
-    pub fn output<S: AsRef<OsStr>>(&self, file: S) -> Result<Output, std::io::Error> {
+    fn spawn_with<'a>(&mut self, file: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .arg(file)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()
+            .spawn()
     }
 }
 

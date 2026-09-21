@@ -1,10 +1,12 @@
 use std::{
     ffi::OsStr,
     path::PathBuf,
-    process::{Child, Output, Stdio},
+    process::{Child, Stdio},
 };
 
-use crate::{cmd::SubCommand, global::GlobalOpts};
+use super::SubCommand;
+
+use crate::{global::GlobalOpts, spawn::ParameterizedSpawn};
 
 /// `p4 [g-opts] add [-c changelist] [-d -f -I -n] [-t filetype] file ...`
 ///
@@ -59,6 +61,25 @@ impl SubCommand for Add {
     }
 }
 
+impl ParameterizedSpawn for Add {
+    type Input<'a> = &'a [&'a OsStr];
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 add` for the given files as a child process.
+    ///
+    /// The child process inherits the standard input, output, and error
+    /// streams of the current process, and runs asynchronously; use the
+    /// returned [`Child`] handle to wait for it or interact with it.
+    fn spawn_with<'a>(&mut self, input: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+        self.setup_command(&self.bin)
+            .args(input)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+    }
+}
+
 impl Add {
     /// Open files in a client workspace for addition to the depot.
     ///
@@ -69,28 +90,6 @@ impl Add {
             global_opts,
             ..Default::default()
         }
-    }
-
-    /// Spawns `p4 add` for the given files as a child process.
-    ///
-    /// The child process inherits the standard input, output, and error
-    /// streams of the current process, and runs asynchronously; use the
-    /// returned [`Child`] handle to wait for it or interact with it.
-    pub fn spawn<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).args(files).spawn()
-    }
-
-    /// Runs `p4 add` for the given files to completion and captures its
-    /// output.
-    ///
-    /// Unlike [`Self::spawn`], this method blocks until the command exits and
-    /// collects the standard output and error into the returned [`Output`].
-    pub fn output<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Output, std::io::Error> {
-        self.setup_command(&self.bin)
-            .args(files)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
     }
 
     /// # Description

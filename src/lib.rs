@@ -18,10 +18,12 @@ use crate::global::GlobalOpts;
 
 pub mod cmd;
 pub mod global;
+pub mod spawn;
 
 pub mod prelude {
     pub use crate::cmd::*;
     pub use crate::global::*;
+    pub use crate::spawn::*;
 }
 
 #[derive(Debug, Clone)]

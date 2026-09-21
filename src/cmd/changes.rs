@@ -1,13 +1,13 @@
 use std::{
     ffi::OsStr,
     path::PathBuf,
-    process::{Child, Output, Stdio},
+    process::{Child, Stdio},
 };
 
-use crate::{
-    cmd::{ExclusiveOption, SubCommand, Unselected},
-    global::GlobalOpts,
-};
+use super::{ExclusiveOption, SubCommand, Unselected};
+
+use crate::global::GlobalOpts;
+use crate::spawn::ParameterizedSpawn;
 
 /// `-l`: full text of each changelist description.
 #[derive(Debug, Clone, Copy, Default)]
@@ -198,32 +198,27 @@ impl Changes<Unselected> {
     }
 }
 
-impl<L: ExclusiveOption> Changes<L> {
-    /// Runs `p4 changes` for the given files, inheriting the parent process's
-    /// standard streams.
-    ///
-    /// If files are specified, only changelists that affect those files are
-    /// listed. Pass an empty slice to list all changelists.
-    pub fn spawn<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).args(files).spawn()
-    }
+impl<L: ExclusiveOption> ParameterizedSpawn for Changes<L> {
+    type Input<'a> = &'a [&'a OsStr];
+    type Output<'a> = Child;
+    type Error = std::io::Error;
 
-    /// Runs `p4 changes` for the given files to completion and captures its
-    /// output.
-    ///
-    /// Unlike [`Self::spawn`], this method blocks until the command exits and
-    /// collects the standard output and error into the returned [`Output`].
+    /// Spawns `p4 changes` for the given files as a child process with piped
+    /// standard output and error streams; use the returned [`Child`] handle
+    /// to wait for it or interact with it.
     ///
     /// If files are specified, only changelists that affect those files are
     /// listed. Pass an empty slice to list all changelists.
-    pub fn output<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Output, std::io::Error> {
+    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()
+            .spawn()
     }
+}
 
+impl<L: ExclusiveOption> Changes<L> {
     /// # Description
     ///
     /// g-opts

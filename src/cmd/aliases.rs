@@ -1,8 +1,10 @@
 use std::path::PathBuf;
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{Child, Command, Stdio};
 
-use crate::cmd::SubCommand;
+use super::SubCommand;
+
 use crate::global::GlobalOpts;
+use crate::spawn::ParameterizedSpawn;
 
 /// `p4 [g-opts] aliases`: display command aliases that are currently defined
 /// in a `.p4aliases` file.
@@ -25,6 +27,22 @@ impl SubCommand for Aliases {
     }
 }
 
+impl ParameterizedSpawn for Aliases {
+    type Input<'a> = ();
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 aliases` as a child process with piped standard output and
+    /// error streams; use the returned [`Child`] handle to wait for it or
+    /// interact with it.
+    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+        self.setup_command(&self.bin)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+    }
+}
+
 impl Aliases {
     /// Creates a new `p4 aliases` command.
     ///
@@ -34,26 +52,6 @@ impl Aliases {
             bin: bin.into(),
             global_opts,
         }
-    }
-
-    /// Spawns `p4 aliases` as a child process.
-    ///
-    /// The child process inherits the standard input, output, and error
-    /// streams of the current process, and runs asynchronously; use the
-    /// returned [`Child`] handle to wait for it or interact with it.
-    pub fn spawn(&self) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).spawn()
-    }
-
-    /// Runs `p4 aliases` to completion and captures its output.
-    ///
-    /// Unlike [`Self::spawn`], this method blocks until the command exits and
-    /// collects the standard output and error into the returned [`Output`].
-    pub fn output(&self) -> Result<Output, std::io::Error> {
-        self.setup_command(&self.bin)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
     }
 
     /// # Description

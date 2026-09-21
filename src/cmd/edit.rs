@@ -1,13 +1,13 @@
 use std::{
     ffi::OsStr,
     path::PathBuf,
-    process::{Child, Command, Output, Stdio},
+    process::{Child, Command, Stdio},
 };
 
-use crate::{
-    cmd::{ExclusiveOption, SubCommand, Unselected},
-    global::GlobalOpts,
-};
+use super::{ExclusiveOption, SubCommand, Unselected};
+
+use crate::global::GlobalOpts;
+use crate::spawn::ParameterizedSpawn;
 
 /// File edit mode of `p4 edit`: the file form carrying `-k`, `-n`,
 /// `--remote`, and `-t`.
@@ -221,59 +221,47 @@ impl Edit<Unselected> {
     }
 }
 
-impl Edit<Unselected> {
-    /// Runs `p4 edit` for the given files, inheriting the parent process's
-    /// standard streams.
-    ///
-    /// This corresponds to the file form of the command:
-    /// `p4 edit [options] file ...`.
-    pub fn spawn<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).args(files).spawn()
-    }
+impl ParameterizedSpawn for Edit<Unselected> {
+    type Input<'a> = &'a [&'a OsStr];
+    type Output<'a> = Child;
+    type Error = std::io::Error;
 
-    /// Runs `p4 edit` for the given files to completion and captures its
-    /// output.
-    ///
-    /// Unlike [`Self::spawn`], this method blocks until the command exits and
-    /// collects the standard output and error into the returned [`Output`].
+    /// Spawns `p4 edit` for the given files as a child process with piped
+    /// standard output and error streams; use the returned [`Child`] handle
+    /// to wait for it or interact with it.
     ///
     /// This corresponds to the file form of the command:
     /// `p4 edit [options] file ...`.
-    pub fn output<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Output, std::io::Error> {
+    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()
+            .spawn()
+    }
+}
+
+impl ParameterizedSpawn for Edit<FileEditMode> {
+    type Input<'a> = &'a [&'a OsStr];
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 edit` for the given files as a child process with piped
+    /// standard output and error streams; use the returned [`Child`] handle
+    /// to wait for it or interact with it.
+    ///
+    /// This corresponds to the file form of the command:
+    /// `p4 edit [options] file ...`.
+    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+        self.setup_command(&self.bin)
+            .args(files)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
     }
 }
 
 impl Edit<FileEditMode> {
-    /// Runs `p4 edit` for the given files, inheriting the parent process's
-    /// standard streams.
-    ///
-    /// This corresponds to the file form of the command:
-    /// `p4 edit [options] file ...`.
-    pub fn spawn<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).args(files).spawn()
-    }
-
-    /// Runs `p4 edit` for the given files to completion and captures its
-    /// output.
-    ///
-    /// Unlike [`Self::spawn`], this method blocks until the command exits and
-    /// collects the standard output and error into the returned [`Output`].
-    ///
-    /// This corresponds to the file form of the command:
-    /// `p4 edit [options] file ...`.
-    pub fn output<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Output, std::io::Error> {
-        self.setup_command(&self.bin)
-            .args(files)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
-    }
-
     /// # Description
     ///
     /// -k
@@ -436,31 +424,23 @@ impl Edit<FileEditMode> {
     }
 }
 
-impl Edit<StreamSpecEditMode> {
-    /// Runs `p4 edit -So` to open the current stream spec for edit, inheriting
-    /// the parent process's standard streams.
-    ///
-    /// This corresponds to the stream spec form of the command:
-    /// `p4 edit -So [-c changelist]`, which takes no file arguments.
-    #[cfg(not(feature = "lt2019_1"))]
-    pub fn spawn(&self) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).spawn()
-    }
+#[cfg(not(feature = "lt2019_1"))]
+impl ParameterizedSpawn for Edit<StreamSpecEditMode> {
+    type Input<'a> = ();
+    type Output<'a> = Child;
+    type Error = std::io::Error;
 
-    /// Runs `p4 edit -So` to open the current stream spec for edit, waits for
-    /// it to complete, and captures its output.
-    ///
-    /// Unlike [`Self::spawn`], this method blocks until the command exits and
-    /// collects the standard output and error into the returned [`Output`].
+    /// Spawns `p4 edit -So` to open the current stream spec for edit as a
+    /// child process with piped standard output and error streams; use the
+    /// returned [`Child`] handle to wait for it or interact with it.
     ///
     /// This corresponds to the stream spec form of the command:
     /// `p4 edit -So [-c changelist]`, which takes no file arguments.
-    #[cfg(not(feature = "lt2019_1"))]
-    pub fn output(&self) -> Result<Output, std::io::Error> {
+    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()
+            .spawn()
     }
 }
 

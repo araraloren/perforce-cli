@@ -1,9 +1,11 @@
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{Child, Command, Stdio};
 
-use crate::cmd::{ExclusiveOption, SubCommand, Unselected};
+use super::{ExclusiveOption, SubCommand, Unselected};
+
 use crate::global::GlobalOpts;
+use crate::spawn::{ParameterizedSpawn, SpawnExt};
 
 /// Entry point for the `p4 admin` subcommands.
 ///
@@ -199,6 +201,132 @@ impl<T: SubCommand> SubCommand for Admin<T> {
     }
 }
 
+// ---- Executors ----
+//
+// Each `p4 admin` subcommand type-state implements `ParameterizedSpawn`; for
+// the no-input states the blanket `SpawnExt`/`ParameterizedOutput`/`OutputExt`
+// impls in [crate::cmd] provide `spawn`, `output_with`, and `output`.
+
+impl<T: SubCommand> Admin<T> {
+    /// Spawns the assembled `p4 admin` command as a child process with piped
+    /// standard output and error streams; use the returned [`Child`] handle
+    /// to wait for it or interact with it.
+    fn spawn_piped(&mut self) -> Result<Child, std::io::Error> {
+        self.setup_command(&self.bin)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+    }
+}
+
+impl ParameterizedSpawn for Admin<Stop> {
+    type Input<'a> = ();
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 admin stop` as a child process with piped standard output
+    /// and error streams; use the returned [`Child`] handle to wait for it or
+    /// interact with it.
+    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+        self.spawn_piped()
+    }
+}
+
+impl ParameterizedSpawn for Admin<Restart> {
+    type Input<'a> = ();
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 admin restart` as a child process with piped standard
+    /// output and error streams; use the returned [`Child`] handle to wait
+    /// for it or interact with it.
+    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+        self.spawn_piped()
+    }
+}
+
+impl<S: ExclusiveOption> ParameterizedSpawn for Admin<UpdateSpecDepot<S>> {
+    type Input<'a> = ();
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 admin updatespecdepot` as a child process with piped
+    /// standard output and error streams; use the returned [`Child`] handle
+    /// to wait for it or interact with it.
+    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+        self.spawn_piped()
+    }
+}
+
+impl<T: ExclusiveOption> ParameterizedSpawn for Admin<ResetPassword<T>> {
+    type Input<'a> = ();
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 admin resetpassword` as a child process with piped standard
+    /// output and error streams; use the returned [`Child`] handle to wait
+    /// for it or interact with it.
+    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+        self.spawn_piped()
+    }
+}
+
+#[cfg(not(feature = "lt2015_1"))]
+impl ParameterizedSpawn for Admin<SetLdapUsers> {
+    type Input<'a> = ();
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 admin setldapusers` as a child process with piped standard
+    /// output and error streams; use the returned [`Child`] handle to wait
+    /// for it or interact with it.
+    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+        self.spawn_piped()
+    }
+}
+
+#[cfg(not(feature = "lt2018_1"))]
+impl ParameterizedSpawn for Admin<EndJournal> {
+    type Input<'a> = ();
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 admin endjournal` as a child process with piped standard
+    /// output and error streams; use the returned [`Child`] handle to wait
+    /// for it or interact with it.
+    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+        self.spawn_piped()
+    }
+}
+
+#[cfg(not(feature = "lt2023_1"))]
+impl ParameterizedSpawn for Admin<SysInfo> {
+    type Input<'a> = ();
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 admin sysinfo` as a child process with piped standard
+    /// output and error streams; use the returned [`Child`] handle to wait
+    /// for it or interact with it.
+    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+        self.spawn_piped()
+    }
+}
+
+#[cfg(not(feature = "lt2023_1"))]
+impl ParameterizedSpawn for Admin<ResourceMonitor> {
+    type Input<'a> = ();
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 admin resource-monitor` as a child process with piped
+    /// standard output and error streams; use the returned [`Child`] handle
+    /// to wait for it or interact with it.
+    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+        self.spawn_piped()
+    }
+}
+
 impl<T: SubCommand> Admin<T> {
     /// Creates a `p4 admin` command wrapping the given subcommand.
     ///
@@ -209,26 +337,6 @@ impl<T: SubCommand> Admin<T> {
             global_opts,
             sub_command,
         }
-    }
-
-    /// Spawns `p4 admin` as a child process.
-    ///
-    /// The child process inherits the standard input, output, and error
-    /// streams of the current process, and runs asynchronously; use the
-    /// returned [`Child`] handle to wait for it or interact with it.
-    pub fn spawn(&self) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).spawn()
-    }
-
-    /// Runs `p4 admin` to completion and captures its output.
-    ///
-    /// Unlike [`Self::spawn`], this method blocks until the command exits and
-    /// collects the standard output and error into the returned [`Output`].
-    pub fn output(&self) -> Result<Output, std::io::Error> {
-        self.setup_command(&self.bin)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
     }
 
     /// # Description
@@ -386,30 +494,39 @@ impl<C: ExclusiveOption> SubCommand for CheckPoint<C> {
     }
 }
 
-impl<C: ExclusiveOption> Admin<CheckPoint<C>> {
-    /// Spawns `p4 admin checkpoint` with the given checkpoint prefix as a
-    /// child process.
-    ///
-    /// The child process inherits the standard input, output, and error
-    /// streams of the current process, and runs asynchronously; use the
-    /// returned [`Child`] handle to wait for it or interact with it.
-    pub fn spawn_with<S: AsRef<OsStr>>(&self, prefix: S) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).arg(prefix).spawn()
-    }
+impl<C: ExclusiveOption> ParameterizedSpawn for Admin<CheckPoint<C>> {
+    type Input<'a> = &'a OsStr;
+    type Output<'a> = Child;
+    type Error = std::io::Error;
 
-    /// Runs `p4 admin checkpoint` with the given checkpoint prefix to
-    /// completion and captures its output.
+    /// Spawns `p4 admin checkpoint` as a child process with piped standard
+    /// output and error streams; use the returned [`Child`] handle to wait
+    /// for it or interact with it.
     ///
-    /// Unlike [`Self::spawn_with`], this method blocks until the command exits
-    /// and collects the standard output and error into the returned [`Output`].
-    pub fn output_with<S: AsRef<OsStr>>(&self, prefix: S) -> Result<Output, std::io::Error> {
+    /// Pass `Some(prefix)` to name the checkpoint with the given prefix, or
+    /// `None` to use the default checkpoint name.
+    fn spawn_with<'a>(&mut self, prefix: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .arg(prefix)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()
+            .spawn()
     }
+}
 
+impl<C: ExclusiveOption> SpawnExt for Admin<CheckPoint<C>> {
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    fn spawn<'a>(&mut self) -> Result<Self::Output<'a>, Self::Error> {
+        self.setup_command(&self.bin)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+    }
+}
+
+impl<C: ExclusiveOption> Admin<CheckPoint<C>> {
     /// # Description
     ///
     /// -p
@@ -678,30 +795,39 @@ impl SubCommand for Journal {
     }
 }
 
-impl Admin<Journal> {
-    /// Spawns `p4 admin journal` with the given journal prefix as a child
-    /// process.
-    ///
-    /// The child process inherits the standard input, output, and error
-    /// streams of the current process, and runs asynchronously; use the
-    /// returned [`Child`] handle to wait for it or interact with it.
-    pub fn spawn_with<S: AsRef<OsStr>>(&self, prefix: S) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).arg(prefix).spawn()
-    }
+impl ParameterizedSpawn for Admin<Journal> {
+    type Input<'a> = &'a OsStr;
+    type Output<'a> = Child;
+    type Error = std::io::Error;
 
-    /// Runs `p4 admin journal` with the given journal prefix to completion and
-    /// captures its output.
+    /// Spawns `p4 admin journal` as a child process with piped standard
+    /// output and error streams; use the returned [`Child`] handle to wait
+    /// for it or interact with it.
     ///
-    /// Unlike [`Self::spawn_with`], this method blocks until the command exits
-    /// and collects the standard output and error into the returned [`Output`].
-    pub fn output_with<S: AsRef<OsStr>>(&self, prefix: S) -> Result<Output, std::io::Error> {
+    /// Pass `Some(prefix)` to name the journal with the given prefix, or
+    /// `None` to use the default journal name.
+    fn spawn_with<'a>(&mut self, prefix: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .arg(prefix)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()
+            .spawn()
     }
+}
 
+impl SpawnExt for Admin<Journal> {
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    fn spawn<'a>(&mut self) -> Result<Self::Output<'a>, Self::Error> {
+        self.setup_command(&self.bin)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+    }
+}
+
+impl Admin<Journal> {
     /// # Description
     ///
     /// -z
@@ -1380,28 +1506,22 @@ impl Admin<ReplicaFilterReconcile<Unselected>> {
 }
 
 #[cfg(not(feature = "lt2025_2"))]
-impl<M: ExclusiveOption> Admin<ReplicaFilterReconcile<M>> {
-    /// Spawns `p4 admin replica-filter-reconcile` for the given tables as a
-    /// child process.
-    ///
-    /// The child process inherits the standard input, output, and error
-    /// streams of the current process, and runs asynchronously; use the
-    /// returned [`Child`] handle to wait for it or interact with it.
-    pub fn spawn_with<S: AsRef<OsStr>>(&self, tables: &[S]) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).args(tables).spawn()
-    }
+impl<M: ExclusiveOption> ParameterizedSpawn for Admin<ReplicaFilterReconcile<M>> {
+    type Input<'a> = &'a [&'a OsStr];
+    type Output<'a> = Child;
+    type Error = std::io::Error;
 
-    /// Runs `p4 admin replica-filter-reconcile` for the given tables to
-    /// completion and captures its output.
+    /// Spawns `p4 admin replica-filter-reconcile` for the given tables as a
+    /// child process with piped standard output and error streams; use the
+    /// returned [`Child`] handle to wait for it or interact with it.
     ///
-    /// Unlike [`Self::spawn_with`], this method blocks until the command exits
-    /// and collects the standard output and error into the returned [`Output`].
-    pub fn output_with<S: AsRef<OsStr>>(&self, tables: &[S]) -> Result<Output, std::io::Error> {
+    /// Pass an empty slice to reconcile all applicable database tables.
+    fn spawn_with<'a>(&mut self, tables: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .args(tables)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()
+            .spawn()
     }
 }
 

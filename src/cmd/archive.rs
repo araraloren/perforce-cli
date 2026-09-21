@@ -1,9 +1,11 @@
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{Child, Command, Stdio};
 
-use crate::cmd::{ExclusiveOption, SubCommand};
+use super::{ExclusiveOption, SubCommand};
+
 use crate::global::GlobalOpts;
+use crate::spawn::ParameterizedSpawn;
 
 /// Archive files to an archive depot (default mode).
 ///
@@ -196,32 +198,30 @@ impl Archive<SafeArchive> {
     }
 }
 
-impl<M> Archive<M>
+impl<M> ParameterizedSpawn for Archive<M>
 where
     Archive<M>: SubCommand,
 {
-    /// Spawns `p4 archive` for the given file specs as a child process.
-    ///
-    /// The child process inherits the standard input, output, and error
-    /// streams of the current process, and runs asynchronously; use the
-    /// returned [`Child`] handle to wait for it or interact with it.
-    pub fn spawn<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).args(files).spawn()
-    }
+    type Input<'a> = &'a [&'a OsStr];
+    type Output<'a> = Child;
+    type Error = std::io::Error;
 
-    /// Runs `p4 archive` for the given file specs to completion and captures
-    /// its output.
-    ///
-    /// Unlike [`Self::spawn`], this method blocks until the command exits and
-    /// collects the standard output and error into the returned [`Output`].
-    pub fn output<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Output, std::io::Error> {
+    /// Spawns `p4 archive` for the given file specs as a child process with
+    /// piped standard output and error streams; use the returned [`Child`]
+    /// handle to wait for it or interact with it.
+    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()
+            .spawn()
     }
+}
 
+impl<M> Archive<M>
+where
+    Archive<M>: SubCommand,
+{
     /// # Description
     ///
     /// g-opts

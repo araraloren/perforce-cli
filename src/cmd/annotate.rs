@@ -1,9 +1,11 @@
 use std::ffi::OsStr;
 use std::path::PathBuf;
-use std::process::{Child, Command, Output, Stdio};
+use std::process::{Child, Command, Stdio};
 
-use crate::cmd::{ExclusiveOption, SubCommand, Unselected};
+use super::{ExclusiveOption, SubCommand, Unselected};
+
 use crate::global::GlobalOpts;
+use crate::spawn::ParameterizedSpawn;
 
 /// Internal representation of the `-T` / `--tab=N` tab stop setting.
 #[cfg(not(feature = "lt2016_1"))]
@@ -178,29 +180,24 @@ impl Annotate<Unselected> {
     }
 }
 
-impl<F: ExclusiveOption> Annotate<F> {
-    /// Spawns `p4 annotate` for the given files as a child process.
-    ///
-    /// The child process inherits the standard input, output, and error
-    /// streams of the current process, and runs asynchronously; use the
-    /// returned [`Child`] handle to wait for it or interact with it.
-    pub fn spawn<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).args(files).spawn()
-    }
+impl<F: ExclusiveOption> ParameterizedSpawn for Annotate<F> {
+    type Input<'a> = &'a [&'a OsStr];
+    type Output<'a> = Child;
+    type Error = std::io::Error;
 
-    /// Runs `p4 annotate` for the given files to completion and captures its
-    /// output.
-    ///
-    /// Unlike [`Self::spawn`], this method blocks until the command exits and
-    /// collects the standard output and error into the returned [`Output`].
-    pub fn output<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Output, std::io::Error> {
+    /// Spawns `p4 annotate` for the given files as a child process with piped
+    /// standard output and error streams; use the returned [`Child`] handle
+    /// to wait for it or interact with it.
+    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()
+            .spawn()
     }
+}
 
+impl<F: ExclusiveOption> Annotate<F> {
     /// # Description
     ///
     /// g-opts

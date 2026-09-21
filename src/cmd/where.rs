@@ -1,10 +1,13 @@
 use std::{
     ffi::OsStr,
     path::PathBuf,
-    process::{Child, Command, Output, Stdio},
+    process::{Child, Command, Stdio},
 };
 
-use crate::{cmd::SubCommand, global::GlobalOpts};
+use super::SubCommand;
+
+use crate::global::GlobalOpts;
+use crate::spawn::ParameterizedSpawn;
 
 #[cfg_attr(feature = "lt2015_1", doc = "`p4 [g-opts] where [file ...]`")]
 #[cfg_attr(
@@ -68,6 +71,25 @@ impl SubCommand for Where {
     }
 }
 
+impl ParameterizedSpawn for Where {
+    type Input<'a> = &'a [&'a OsStr];
+    type Output<'a> = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 where` for the given files as a child process with piped
+    /// standard output and error streams; use the returned [`Child`] handle
+    /// to wait for it or interact with it.
+    ///
+    /// For each file provided as a parameter, a set of mappings is output.
+    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+        self.setup_command(&self.bin)
+            .args(files)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+    }
+}
+
 impl Where {
     /// Creates a new `p4 where` command.
     ///
@@ -77,29 +99,6 @@ impl Where {
             bin: bin.into(),
             global_opts,
         }
-    }
-
-    /// Runs `p4 where` for the given files, inheriting the parent process's
-    /// standard streams.
-    ///
-    /// For each file provided as a parameter, a set of mappings is output.
-    pub fn spawn<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).args(files).spawn()
-    }
-
-    /// Runs `p4 where` for the given files to completion and captures its
-    /// output.
-    ///
-    /// Unlike [`Self::spawn`], this method blocks until the command exits and
-    /// collects the standard output and error into the returned [`Output`].
-    ///
-    /// For each file provided as a parameter, a set of mappings is output.
-    pub fn output<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Output, std::io::Error> {
-        self.setup_command(&self.bin)
-            .args(files)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .output()
     }
 
     /// # Description

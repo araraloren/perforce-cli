@@ -1,13 +1,13 @@
 use std::{
     ffi::OsStr,
     path::PathBuf,
-    process::{Child, Command, Output, Stdio},
+    process::{Child, Command, Stdio},
 };
 
-use crate::{
-    cmd::{ExclusiveOption, SubCommand, Unselected},
-    global::GlobalOpts,
-};
+use super::{ExclusiveOption, SubCommand, Unselected};
+
+use crate::global::GlobalOpts;
+use crate::spawn::ParameterizedSpawn;
 
 /// Full description output of `p4 filelog` (`-l`): list long output, with
 /// the full text of each changelist description.
@@ -178,30 +178,26 @@ impl<L: ExclusiveOption> FileLog<L, Unselected> {
     }
 }
 
-impl<L: ExclusiveOption, H: ExclusiveOption> FileLog<L, H> {
-    /// Runs `p4 filelog` for the given files, inheriting the parent process's
-    /// standard streams.
-    ///
-    /// At least one file or file pattern must be provided.
-    pub fn spawn<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).args(files).spawn()
-    }
+impl<L: ExclusiveOption, H: ExclusiveOption> ParameterizedSpawn for FileLog<L, H> {
+    type Input<'a> = &'a [&'a OsStr];
+    type Output<'a> = Child;
+    type Error = std::io::Error;
 
-    /// Runs `p4 filelog` for the given files to completion and captures its
-    /// output.
-    ///
-    /// Unlike [`Self::spawn`], this method blocks until the command exits and
-    /// collects the standard output and error into the returned [`Output`].
+    /// Spawns `p4 filelog` for the given files as a child process with piped
+    /// standard output and error streams; use the returned [`Child`] handle
+    /// to wait for it or interact with it.
     ///
     /// At least one file or file pattern must be provided.
-    pub fn output<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Output, std::io::Error> {
+    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()
+            .spawn()
     }
+}
 
+impl<L: ExclusiveOption, H: ExclusiveOption> FileLog<L, H> {
     /// # Description
     ///
     /// g-opts

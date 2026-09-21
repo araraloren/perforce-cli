@@ -1,13 +1,13 @@
 use std::{
     ffi::OsStr,
     path::PathBuf,
-    process::{Child, Command, Output, Stdio},
+    process::{Child, Command, Stdio},
 };
 
-use crate::{
-    cmd::{ExclusiveOption, SubCommand, Unselected},
-    global::GlobalOpts,
-};
+use super::{ExclusiveOption, SubCommand, Unselected};
+
+use crate::global::GlobalOpts;
+use crate::spawn::ParameterizedSpawn;
 
 /// Standard print mode of `p4 print`: print the contents of depot file
 /// revisions.
@@ -704,29 +704,24 @@ impl Print<Unselected> {
     }
 }
 
-impl<M: ExclusiveOption> Print<M> {
-    /// Spawns `p4 print` for the given files as a child process.
-    ///
-    /// The child process inherits the standard input, output, and error
-    /// streams of the current process, and runs asynchronously; use the
-    /// returned [`Child`] handle to wait for it or interact with it.
-    pub fn spawn<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Child, std::io::Error> {
-        self.setup_command(&self.bin).args(files).spawn()
-    }
+impl<M: ExclusiveOption> ParameterizedSpawn for Print<M> {
+    type Input<'a> = &'a [&'a OsStr];
+    type Output<'a> = Child;
+    type Error = std::io::Error;
 
-    /// Runs `p4 print` for the given files to completion and captures its
-    /// output.
-    ///
-    /// Unlike [`Self::spawn`], this method blocks until the command exits and
-    /// collects the standard output and error into the returned [`Output`].
-    pub fn output<S: AsRef<OsStr>>(&self, files: &[S]) -> Result<Output, std::io::Error> {
+    /// Spawns `p4 print` for the given files as a child process with piped
+    /// standard output and error streams; use the returned [`Child`] handle
+    /// to wait for it or interact with it.
+    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()
+            .spawn()
     }
+}
 
+impl<M: ExclusiveOption> Print<M> {
     /// # Description
     ///
     /// g-opts

@@ -8,13 +8,16 @@
 //! ```
 
 use p4cli::P4Cli;
+use p4cli::spawn::{ParameterizedOutput, ParameterizedSpawn};
+use std::ffi::OsStr;
+use std::path::Path;
 
 fn main() -> std::io::Result<()> {
     let p4 = P4Cli::default();
 
     // Chain builders: print all revisions of the first two matching files to
     // a local output file, without the depot header line.
-    let print = p4
+    let mut print = p4
         .print()
         .all_revisions(true)
         .quiet_mode(true)
@@ -22,11 +25,14 @@ fn main() -> std::io::Result<()> {
         .redirect_output("print-output.txt");
 
     // Run the command to completion and capture its output.
-    let output = print.output(&["//depot/project/README.md"])?;
+    let file = Path::new("//depot/project/README.md");
+    let output = print.output_with(&[file.as_os_str()])?;
     println!("{}", String::from_utf8_lossy(&output.stdout));
 
-    // Or stream the contents directly to the terminal with `spawn`.
-    let mut child = p4.print().spawn(&["//depot/project/README.md"])?;
+    // Or stream the contents directly to the terminal with `spawn_with`.
+    let mut child = p4
+        .print()
+        .spawn_with(&[OsStr::new("//depot/project/README.md")])?;
     child.wait()?;
 
     Ok(())
