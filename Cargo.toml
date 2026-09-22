@@ -1,6 +1,6 @@
 [package]
 name = "perforce-cli"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 edition = "2024"
 authors = [
   "araraloren <blackcatoverwall@gmail.com>",
@@ -298,4 +298,8 @@ lt2026_1 = []
 
 [[example]]
 name = "print"
+doc-scrape-examples = true
+
+[[example]]
+name = "diff"
 doc-scrape-examples = true

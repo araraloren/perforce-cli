@@ -1,4 +1,6 @@
+#[cfg(not(feature = "lt2025_2"))]
 use std::ffi::OsStr;
+
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 
