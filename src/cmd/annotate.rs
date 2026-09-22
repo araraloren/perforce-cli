@@ -2,7 +2,7 @@ use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 
-use super::{ExclusiveOption, SubCommand, Unselected};
+use super::{DiffOptions, ExclusiveOption, SubCommand, Unselected};
 
 use crate::global::GlobalOpts;
 use crate::spawn::ParameterizedSpawn;
@@ -83,7 +83,7 @@ pub struct Annotate<F = Unselected> {
 
     changelist_number: bool,
 
-    diff_options: Option<String>,
+    diff_options: Option<DiffOptions>,
 
     follow: F,
 
@@ -369,8 +369,8 @@ impl<F: ExclusiveOption> Annotate<F> {
         not(feature = "lt2024_1"),
         doc = "options. See Usage notes for a listing of these options."
     )]
-    pub fn get_diff_options(&self) -> Option<&str> {
-        self.diff_options.as_deref()
+    pub fn get_diff_options(&self) -> Option<&DiffOptions> {
+        self.diff_options.as_ref()
     }
 
     /// # Description
@@ -397,7 +397,7 @@ impl<F: ExclusiveOption> Annotate<F> {
         not(feature = "lt2024_1"),
         doc = "options. See Usage notes for a listing of these options."
     )]
-    pub fn set_diff_options(&mut self, v: impl Into<String>) -> &mut Self {
+    pub fn set_diff_options(&mut self, v: impl Into<DiffOptions>) -> &mut Self {
         self.diff_options = Some(v.into());
         self
     }
@@ -426,7 +426,7 @@ impl<F: ExclusiveOption> Annotate<F> {
         not(feature = "lt2024_1"),
         doc = "options. See Usage notes for a listing of these options."
     )]
-    pub fn diff_options(mut self, v: impl Into<String>) -> Self {
+    pub fn diff_options(mut self, v: impl Into<DiffOptions>) -> Self {
         self.diff_options = Some(v.into());
         self
     }
@@ -626,7 +626,7 @@ impl<F: ExclusiveOption> SubCommand for Annotate<F> {
         }
 
         if let Some(diff_options) = &self.diff_options {
-            command.arg(format!("-d{diff_options}"));
+            diff_options.inject_arg(command);
         }
 
         self.follow.inject_args(command);
@@ -669,6 +669,7 @@ impl<F: ExclusiveOption> SubCommand for Annotate<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cmd::DiffOptionsBuilder;
     use crate::cmd::args_of;
 
     /// Dry-run checks of the assembled `p4 annotate` command line; no process
@@ -686,7 +687,7 @@ mod tests {
         annotate
             .set_all_lines(true)
             .set_changelist_number(true)
-            .set_diff_options("Su2")
+            .set_diff_options(DiffOptionsBuilder::raw("Su2"))
             .set_quiet_mode(true)
             .set_force_binary(true);
         #[cfg(not(feature = "lt2015_2"))]

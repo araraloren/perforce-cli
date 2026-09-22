@@ -4,7 +4,7 @@ use std::{
     process::{Child, Command, Stdio},
 };
 
-use super::{ExclusiveOption, SubCommand, Unselected};
+use super::{DiffOptions, ExclusiveOption, SubCommand, Unselected};
 
 use crate::global::GlobalOpts;
 use crate::spawn::ParameterizedSpawn;
@@ -28,7 +28,7 @@ impl ExclusiveOption for ShortSummaryMode {
 /// [`Describe::diff_options`].
 #[derive(Debug, Clone, Default)]
 pub struct DetailDiffMode {
-    diff_options: Option<String>,
+    diff_options: Option<DiffOptions>,
 
     #[cfg(not(feature = "lt2017_2"))]
     display_added_text_content: bool,
@@ -42,7 +42,7 @@ impl ExclusiveOption for DetailDiffMode {
         }
 
         if let Some(diff_options) = &self.diff_options {
-            command.arg(format!("-d{diff_options}"));
+            diff_options.inject_arg(command);
         }
     }
 }
@@ -222,7 +222,7 @@ impl Describe<Unselected> {
     ///
     /// Transitions this command to the [`DetailDiffMode`] state with the
     /// diff `options` set.
-    pub fn diff_options(self, v: impl Into<String>) -> Describe<DetailDiffMode> {
+    pub fn diff_options(self, v: impl Into<DiffOptions>) -> Describe<DetailDiffMode> {
         Describe {
             bin: self.bin,
             global_opts: self.global_opts,
@@ -587,8 +587,8 @@ impl Describe<DetailDiffMode> {
         not(feature = "lt2024_1"),
         doc = "options. See Usage notes for an option listing."
     )]
-    pub fn get_diff_options(&self) -> Option<&str> {
-        self.mode.diff_options.as_deref()
+    pub fn get_diff_options(&self) -> Option<&DiffOptions> {
+        self.mode.diff_options.as_ref()
     }
 
     /// # Description
@@ -613,7 +613,7 @@ impl Describe<DetailDiffMode> {
         not(feature = "lt2024_1"),
         doc = "options. See Usage notes for an option listing."
     )]
-    pub fn set_diff_options(&mut self, v: impl Into<String>) -> &mut Self {
+    pub fn set_diff_options(&mut self, v: impl Into<DiffOptions>) -> &mut Self {
         self.mode.diff_options = Some(v.into());
         self
     }
@@ -685,6 +685,7 @@ impl<M: ExclusiveOption> SubCommand for Describe<M> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cmd::DiffOptionsBuilder;
     use crate::cmd::args_of;
 
     /// Dry-run checks of the assembled `p4 describe` command line; no process
@@ -750,19 +751,24 @@ mod tests {
 
     #[test]
     fn detail_diff_mode_via_diff_options() {
-        let describe = Describe::new("p4", GlobalOpts::new()).diff_options("du");
+        let describe =
+            Describe::new("p4", GlobalOpts::new()).diff_options(DiffOptionsBuilder::unified(None));
 
-        assert_eq!(describe.get_diff_options(), Some("du"));
-        assert_eq!(args_of(&describe.setup_command("p4")), ["describe", "-ddu"]);
+        assert!(describe.get_diff_options().is_some());
+        assert_eq!(args_of(&describe.setup_command("p4")), ["describe", "-du"]);
     }
 
     #[test]
     fn detail_diff_mode_set_diff_options() {
-        let mut describe = Describe::new("p4", GlobalOpts::new()).diff_options("du");
-        describe.set_diff_options("sb");
+        let mut describe =
+            Describe::new("p4", GlobalOpts::new()).diff_options(DiffOptionsBuilder::unified(None));
+        describe.set_diff_options(DiffOptionsBuilder::summary());
 
-        assert_eq!(describe.get_diff_options(), Some("sb"));
-        assert_eq!(args_of(&describe.setup_command("p4")), ["describe", "-dsb"]);
+        assert_eq!(
+            describe.get_diff_options(),
+            Some(&DiffOptions::from(DiffOptionsBuilder::summary()))
+        );
+        assert_eq!(args_of(&describe.setup_command("p4")), ["describe", "-ds"]);
     }
 
     #[cfg(not(feature = "lt2017_2"))]
@@ -779,11 +785,11 @@ mod tests {
     #[test]
     fn detail_diff_mode_combines_a_and_d() {
         let mut describe = Describe::new("p4", GlobalOpts::new()).display_added_text_content(true);
-        describe.set_diff_options("du");
+        describe.set_diff_options(DiffOptionsBuilder::unified(None));
 
         assert_eq!(
             args_of(&describe.setup_command("p4")),
-            ["describe", "-a", "-ddu"]
+            ["describe", "-a", "-du"]
         );
     }
 
