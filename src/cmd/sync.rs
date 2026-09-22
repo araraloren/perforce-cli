@@ -57,6 +57,7 @@ impl ParallelConfig {
 
 /// The `--use-stream-change` value controlling which stream specification
 /// version is used to generate the client view.
+#[cfg(not(feature = "lt2022_2"))]
 #[derive(Debug, Clone, Copy)]
 pub enum StreamSpecVersion {
     /// `--use-stream-change` with no value: the maximum change number in the
@@ -69,6 +70,7 @@ pub enum StreamSpecVersion {
     ChangeNumber(u32),
 }
 
+#[cfg(not(feature = "lt2022_2"))]
 impl StreamSpecVersion {
     /// `--use-stream-change` with no value: the maximum change number in the
     /// file list determines the stream spec version.
