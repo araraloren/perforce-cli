@@ -9,6 +9,8 @@ use crate::cmd::Archive;
 use crate::cmd::Attribute;
 use crate::cmd::Changes;
 use crate::cmd::Describe;
+use crate::cmd::Diff;
+use crate::cmd::Diff2;
 use crate::cmd::Edit;
 use crate::cmd::FileLog;
 use crate::cmd::Print;
@@ -132,6 +134,16 @@ impl P4Cli {
     /// Display the details of one or more changelists.
     pub fn describe(&self) -> Describe {
         Describe::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Diff workspace content against depot content, or diff stream specs.
+    pub fn diff(&self) -> Diff {
+        Diff::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Compare the content at two depot paths, or compare two stream specs.
+    pub fn diff2(&self) -> Diff2 {
+        Diff2::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Open files in a client workspace for edit.

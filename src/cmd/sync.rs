@@ -1566,9 +1566,10 @@ mod tests {
         #[cfg(not(feature = "lt2015_1"))]
         let sync = sync.reopen_moved_files(true);
 
-        let mut expected = vec!["sync", "-f", "-k"];
         #[cfg(not(feature = "lt2015_1"))]
-        expected.push("-r");
+        let expected = vec!["sync", "-f", "-k", "-r"];
+        #[cfg(feature = "lt2015_1")]
+        let expected = vec!["sync", "-f", "-k"];
 
         assert_eq!(args_of(&sync.setup_command("p4")), expected);
     }

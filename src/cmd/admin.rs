@@ -495,7 +495,7 @@ impl<C: ExclusiveOption> SubCommand for CheckPoint<C> {
 }
 
 impl<C: ExclusiveOption> ParameterizedSpawn for Admin<CheckPoint<C>> {
-    type Input<'a> = &'a OsStr;
+    type Input<'a> = Option<&'a str>;
     type Output<'a> = Child;
     type Error = std::io::Error;
 
@@ -506,8 +506,12 @@ impl<C: ExclusiveOption> ParameterizedSpawn for Admin<CheckPoint<C>> {
     /// Pass `Some(prefix)` to name the checkpoint with the given prefix, or
     /// `None` to use the default checkpoint name.
     fn spawn_with<'a>(&mut self, prefix: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
-        self.setup_command(&self.bin)
-            .arg(prefix)
+        let mut command = self.setup_command(&self.bin);
+
+        if let Some(prefix) = prefix {
+            command.arg(prefix);
+        }
+        command
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -516,10 +520,7 @@ impl<C: ExclusiveOption> ParameterizedSpawn for Admin<CheckPoint<C>> {
 
 impl<C: ExclusiveOption> SpawnExt for Admin<CheckPoint<C>> {
     fn spawn<'a>(&mut self) -> Result<Self::Output<'a>, Self::Error> {
-        self.setup_command(&self.bin)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
+        self.spawn_with(None)
     }
 }
 
@@ -793,7 +794,7 @@ impl SubCommand for Journal {
 }
 
 impl ParameterizedSpawn for Admin<Journal> {
-    type Input<'a> = &'a OsStr;
+    type Input<'a> = Option<&'a str>;
     type Output<'a> = Child;
     type Error = std::io::Error;
 
@@ -804,8 +805,12 @@ impl ParameterizedSpawn for Admin<Journal> {
     /// Pass `Some(prefix)` to name the journal with the given prefix, or
     /// `None` to use the default journal name.
     fn spawn_with<'a>(&mut self, prefix: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
-        self.setup_command(&self.bin)
-            .arg(prefix)
+        let mut command = self.setup_command(&self.bin);
+
+        if let Some(prefix) = prefix {
+            command.arg(prefix);
+        }
+        command
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -814,10 +819,7 @@ impl ParameterizedSpawn for Admin<Journal> {
 
 impl SpawnExt for Admin<Journal> {
     fn spawn<'a>(&mut self) -> Result<Self::Output<'a>, Self::Error> {
-        self.setup_command(&self.bin)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
+        self.spawn_with(None)
     }
 }
 

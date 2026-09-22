@@ -7,6 +7,8 @@ pub mod archive;
 pub mod attribute;
 pub mod changes;
 pub mod describe;
+pub mod diff;
+pub mod diff2;
 pub mod edit;
 pub mod filelog;
 pub mod print;
@@ -22,6 +24,10 @@ pub use archive::Archive;
 pub use attribute::Attribute;
 pub use changes::Changes;
 pub use describe::Describe;
+pub use diff::Diff;
+pub use diff::DisplayOptions;
+pub use diff2::Diff2;
+pub use diff2::Diff2Parameters;
 pub use edit::Edit;
 pub use filelog::FileLog;
 pub use print::Print;
@@ -82,8 +88,11 @@ pub enum DiffFormat {
 /// Whitespace handling of the diff routine passed via `-doptions`.
 ///
 /// This is one of two orthogonal dimensions of [`DiffOptions`] (the other
-/// being [`DiffFormat`]). The [`IgnoreChangesWithinWhitespace`] and
-/// [`IgnoreAllWhitespace`] variants each imply [`IgnoreLineEndings`].
+/// being [`DiffFormat`]). The
+/// [`IgnoreChangesWithinWhitespace`](WhitespaceHandling::IgnoreChangesWithinWhitespace)
+/// and [`IgnoreAllWhitespace`](WhitespaceHandling::IgnoreAllWhitespace)
+/// variants each imply
+/// [`IgnoreLineEndings`](WhitespaceHandling::IgnoreLineEndings).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum WhitespaceHandling {
     /// No whitespace handling.
