@@ -32,7 +32,7 @@ time rather than failing at runtime.
 
 ```toml
 [dependencies]
-perforce-cli = "0.1.0-alpha.2"
+perforce-cli = "0.1.0-alpha.3"
 ```
 
 ### Quick start
@@ -150,10 +150,10 @@ the API.
 ```toml
 [dependencies]
 # Defaults to the newest supported release.
-perforce-cli = "0.1.0-alpha.2"
+perforce-cli = "0.1.0-alpha.3"
 
 # Or pin an older server line.
-perforce-cli = { version = "0.1.0-alpha.2", default-features = false, features = ["v2022_2"] }
+perforce-cli = { version = "0.1.0-alpha.3", default-features = false, features = ["v2022_2"] }
 ```
 
 Supported versions: `v2014_1`, `v2014_2`, `v2015_1`, `v2015_2`, `v2016_1`,

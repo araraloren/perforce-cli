@@ -52,9 +52,11 @@ impl ExclusiveOption for StreamMode {
 /// are passed as the arguments of the spawned command. As the `-As` form
 /// accepts only `-doptions` besides g-opts, this mode offers neither the
 /// depot content options nor a sub-mode.
+#[cfg(not(feature = "lt2019_1"))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StreamSpecMode;
 
+#[cfg(not(feature = "lt2019_1"))]
 impl ExclusiveOption for StreamSpecMode {
     fn inject_args(&self, command: &mut Command) {
         command.arg("-As");
@@ -109,25 +111,57 @@ impl<M: ExclusiveOption> ExclusiveOption for DepotContent<M> {
     }
 }
 
-/// `p4 [g-opts] diff2 [-doptions] [-Od -q -t -u] file1[rev] file2[rev]`
-///
-/// `p4 [g-opts] diff2 [-doptions] [-Od -q -t -u] -b branch [[fromfile[rev]] tofile[rev]]`
-///
-/// `p4 [g-opts] diff2 [-doptions] [-Od -q -t -u] [-S stream] [-P parent] [[fromfile[rev]] tofile[rev]]`
-///
-/// `p4 [g-opts] diff2 [-doptions] -As streamname1[@change1] streamname2[@change2]`
+#[cfg_attr(
+    feature = "lt2014_2",
+    doc = "`p4 [g-opts] diff2 [-dflags -Od -q -t -u] file1[rev] file2[rev]`",
+    doc = "",
+    doc = "`p4 [g-opts] diff2 [-dflags -Od -q -t -u] -b branch [[fromfile[rev]] tofile[rev]]`",
+    doc = "",
+    doc = "`p4 [g-opts] diff2 [-dflags -Od -q -t -u] -S stream [-P parent] [[fromfile[rev]] tofile[rev]]`"
+)]
+#[cfg_attr(
+    all(feature = "lt2015_1", not(feature = "lt2014_2")),
+    doc = "`p4 [g-opts] diff2 [-doptions -Od -q -t -u] file1[rev] file2[rev]`",
+    doc = "",
+    doc = "`p4 [g-opts] diff2 [-doptions -Od -q -t -u] -b branch [[fromfile[rev]] tofile[rev]]`",
+    doc = "",
+    doc = "`p4 [g-opts] diff2 [-doptions -Od -q -t -u] -S stream [-P parent] [[fromfile[rev]] tofile[rev]]`"
+)]
+#[cfg_attr(
+    all(feature = "lt2019_1", not(feature = "lt2015_1")),
+    doc = "`p4 [g-opts] diff2 [-doptions] [-Od -q -t -u] file1[rev] file2[rev]`",
+    doc = "",
+    doc = "`p4 [g-opts] diff2 [-doptions] [-Od -q -t -u] -b branch [[fromfile[rev]] tofile[rev]]`",
+    doc = "",
+    doc = "`p4 [g-opts] diff2 [-doptions] [-Od -q -t -u] [-S stream] [-P parent] [[fromfile[rev]] tofile[rev]]`"
+)]
+#[cfg_attr(
+    not(feature = "lt2019_1"),
+    doc = "`p4 [g-opts] diff2 [-doptions] [-Od -q -t -u] file1[rev] file2[rev]`",
+    doc = "",
+    doc = "`p4 [g-opts] diff2 [-doptions] [-Od -q -t -u] -b branch [[fromfile[rev]] tofile[rev]]`",
+    doc = "",
+    doc = "`p4 [g-opts] diff2 [-doptions] [-Od -q -t -u] [-S stream] [-P parent] [[fromfile[rev]] tofile[rev]]`",
+    doc = "",
+    doc = "`p4 [g-opts] diff2 [-doptions] -As streamname1[@change1] streamname2[@change2]`"
+)]
 ///
 /// Diff utility for comparing the content at two depot paths. (For
-/// comparing workspace content to depot content, see `p4 diff`.) Also
-/// compares two arbitrary stream specs with the -As option.
+/// comparing workspace content to depot content, see `p4 diff`.)
 ///
-/// The `M` type parameter tracks the command mode at compile time. The
-/// default [`Unselected`] state diffs the two depot paths given as spawn
-/// arguments; [`Self::differing_only`], [`Self::quiet_mode`],
-/// [`Self::diff_nontext`], and [`Self::unified_patch`] transition to the
-/// [`DepotContent`] state, [`Self::branch`] and [`Self::stream`] transition
-/// to the depot content [`BranchMode`] and [`StreamMode`] sub-modes, and
-/// [`Self::stream_spec_mode`] transitions to the [`StreamSpecMode`] state.
+#[cfg_attr(
+    not(feature = "lt2019_1"),
+    doc = "Also compares two arbitrary stream specs with the -As option."
+)]
+///
+#[cfg_attr(
+    feature = "lt2019_1",
+    doc = "The `M` type parameter tracks the command mode at compile time. The default [`Unselected`] state diffs the two depot paths given as spawn arguments; [`Self::differing_only`], [`Self::quiet_mode`], [`Self::diff_nontext`], and [`Self::unified_patch`] transition to the [`DepotContent`] state, and [`Self::branch`] and [`Self::stream`] transition to the depot content [`BranchMode`] and [`StreamMode`] sub-modes."
+)]
+#[cfg_attr(
+    not(feature = "lt2019_1"),
+    doc = "The `M` type parameter tracks the command mode at compile time. The default [`Unselected`] state diffs the two depot paths given as spawn arguments; [`Self::differing_only`], [`Self::quiet_mode`], [`Self::diff_nontext`], and [`Self::unified_patch`] transition to the [`DepotContent`] state, [`Self::branch`] and [`Self::stream`] transition to the depot content [`BranchMode`] and [`StreamMode`] sub-modes, and [`Self::stream_spec_mode`] transitions to the [`StreamSpecMode`] state."
+)]
 #[derive(Debug, Clone, Default)]
 pub struct Diff2<M = Unselected> {
     bin: PathBuf,
@@ -180,7 +214,7 @@ impl Diff2<Unselected> {
     /// -q
     ///
     /// Quiet diff. Display only the header; if `file1` and `file2` are
-    /// identical, display only `file1 - no differing files` as the output.
+    /// identical, display only "`file1` - no differing files" as the output.
     ///
     /// Transitions this command to the [`DepotContent`] state with `-q` set
     /// according to `v`.
@@ -229,7 +263,16 @@ impl Diff2<Unselected> {
     /// Generate unified output format, showing added and deleted lines with
     /// sufficient context for compatibility with the `patch(1)` utility.
     /// Only those files that differ are included. File names and dates
-    /// remain in P4 Server syntax.
+    #[cfg_attr(feature = "lt2017_2", doc = "remain in Perforce syntax.")]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2017_2")),
+        doc = "remain in Helix Server syntax."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_2", not(feature = "lt2024_1")),
+        doc = "remain in Helix Core Server syntax."
+    )]
+    #[cfg_attr(not(feature = "lt2024_2"), doc = "remain in P4 Server syntax.")]
     ///
     /// Transitions this command to the [`DepotContent`] state with `-u` set
     /// according to `v`.
@@ -312,16 +355,17 @@ impl Diff2<Unselected> {
     /// Can be used with a streamname, or with a streamname at a specific
     /// changelist number.
     ///
-    /// Although this option requires the user have at least the list access
-    /// to the stream path, it ignores any other entry in the protections
-    /// table, including any minus sign (`-`) that would otherwise block the
-    /// operation.
+    /// Although this option requires the user have at least the `list`
+    /// access to the stream path, it ignores any other entry in the
+    /// protections table, including any minus sign (`-`) that would
+    /// otherwise block the operation.
     ///
     /// Transitions this command to the [`StreamSpecMode`] state. The two
     /// stream specs to compare are passed as the arguments of the spawned
     /// command ([`ParameterizedSpawn::spawn_with`]). As the `-As` form
     /// accepts only `-doptions` besides g-opts, this transition is
     /// unavailable once the command has entered the [`DepotContent`] state.
+    #[cfg(not(feature = "lt2019_1"))]
     pub fn stream_spec_mode(self) -> Diff2<StreamSpecMode> {
         Diff2 {
             bin: self.bin,
@@ -337,8 +381,22 @@ impl<M> Diff2<M> {
     ///
     /// -doptions
     ///
-    /// Pass options to the underlying diff routine (see Usage notes for
-    /// details).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "Runs the diff routine with one of a subset of the standard UNIX diff flags. See the Usage Notes below for a listing of these flags."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "Runs the diff routine with one of a subset of the standard UNIX diff options. See the Usage Notes below for a listing of these options."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2015_1")),
+        doc = "Runs the diff routine with one of a subset of the standard UNIX diff options. See Usage Notes for a listing of these options."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_1"),
+        doc = "Runs the diff routine with one of a subset of the standard UNIX diff options. See Usage notes for a listing of these options."
+    )]
     pub fn get_diff_options(&self) -> Option<&DiffOptions> {
         self.diff_opts.as_ref()
     }
@@ -347,8 +405,22 @@ impl<M> Diff2<M> {
     ///
     /// -doptions
     ///
-    /// Pass options to the underlying diff routine (see Usage notes for
-    /// details).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "Runs the diff routine with one of a subset of the standard UNIX diff flags. See the Usage Notes below for a listing of these flags."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "Runs the diff routine with one of a subset of the standard UNIX diff options. See the Usage Notes below for a listing of these options."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2015_1")),
+        doc = "Runs the diff routine with one of a subset of the standard UNIX diff options. See Usage Notes for a listing of these options."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_1"),
+        doc = "Runs the diff routine with one of a subset of the standard UNIX diff options. See Usage notes for a listing of these options."
+    )]
     pub fn set_diff_options(&mut self, v: impl Into<DiffOptions>) -> &mut Self {
         self.diff_opts = Some(v.into());
         self
@@ -358,8 +430,22 @@ impl<M> Diff2<M> {
     ///
     /// -doptions
     ///
-    /// Pass options to the underlying diff routine (see Usage notes for
-    /// details).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "Runs the diff routine with one of a subset of the standard UNIX diff flags. See the Usage Notes below for a listing of these flags."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "Runs the diff routine with one of a subset of the standard UNIX diff options. See the Usage Notes below for a listing of these options."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2015_1")),
+        doc = "Runs the diff routine with one of a subset of the standard UNIX diff options. See Usage Notes for a listing of these options."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_1"),
+        doc = "Runs the diff routine with one of a subset of the standard UNIX diff options. See Usage notes for a listing of these options."
+    )]
     pub fn diff_options(mut self, v: impl Into<DiffOptions>) -> Self {
         self.diff_opts = Some(v.into());
         self
@@ -371,7 +457,23 @@ impl<M: ExclusiveOption> Diff2<M> {
     ///
     /// g-opts
     ///
-    /// See [Global options](GlobalOpts).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "See the [Global Options](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "See the [“Global Options”](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2017_1", not(feature = "lt2015_1")),
+        doc = "See [“Global Options”](GlobalOpts)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2018_2", not(feature = "lt2017_1")),
+        doc = "See [Global Options](GlobalOpts)."
+    )]
+    #[cfg_attr(not(feature = "lt2018_2"), doc = "See [Global options](GlobalOpts).")]
     pub fn get_global_opts(&self) -> &GlobalOpts {
         &self.global_opts
     }
@@ -380,7 +482,23 @@ impl<M: ExclusiveOption> Diff2<M> {
     ///
     /// g-opts
     ///
-    /// See [Global options](GlobalOpts).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "See the [Global Options](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "See the [“Global Options”](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2017_1", not(feature = "lt2015_1")),
+        doc = "See [“Global Options”](GlobalOpts)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2018_2", not(feature = "lt2017_1")),
+        doc = "See [Global Options](GlobalOpts)."
+    )]
+    #[cfg_attr(not(feature = "lt2018_2"), doc = "See [Global options](GlobalOpts).")]
     pub fn set_global_opts(&mut self, v: GlobalOpts) -> &mut Self {
         self.global_opts = v;
         self
@@ -390,7 +508,23 @@ impl<M: ExclusiveOption> Diff2<M> {
     ///
     /// g-opts
     ///
-    /// See [Global options](GlobalOpts).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "See the [Global Options](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "See the [“Global Options”](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2017_1", not(feature = "lt2015_1")),
+        doc = "See [“Global Options”](GlobalOpts)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2018_2", not(feature = "lt2017_1")),
+        doc = "See [Global Options](GlobalOpts)."
+    )]
+    #[cfg_attr(not(feature = "lt2018_2"), doc = "See [Global options](GlobalOpts).")]
     pub fn global_opts(mut self, v: GlobalOpts) -> Self {
         self.global_opts = v;
         self
@@ -432,7 +566,7 @@ impl<M> Diff2<DepotContent<M>> {
     /// -q
     ///
     /// Quiet diff. Display only the header; if `file1` and `file2` are
-    /// identical, display only `file1 - no differing files` as the output.
+    /// identical, display only "`file1` - no differing files" as the output.
     pub fn get_quiet_mode(&self) -> bool {
         self.mode.quiet_mode
     }
@@ -442,7 +576,7 @@ impl<M> Diff2<DepotContent<M>> {
     /// -q
     ///
     /// Quiet diff. Display only the header; if `file1` and `file2` are
-    /// identical, display only `file1 - no differing files` as the output.
+    /// identical, display only "`file1` - no differing files" as the output.
     pub fn set_quiet_mode(&mut self, v: bool) -> &mut Self {
         self.mode.quiet_mode = v;
         self
@@ -453,7 +587,7 @@ impl<M> Diff2<DepotContent<M>> {
     /// -q
     ///
     /// Quiet diff. Display only the header; if `file1` and `file2` are
-    /// identical, display only `file1 - no differing files` as the output.
+    /// identical, display only "`file1` - no differing files" as the output.
     pub fn quiet_mode(mut self, v: bool) -> Self {
         self.mode.quiet_mode = v;
         self
@@ -495,7 +629,16 @@ impl<M> Diff2<DepotContent<M>> {
     /// Generate unified output format, showing added and deleted lines with
     /// sufficient context for compatibility with the `patch(1)` utility.
     /// Only those files that differ are included. File names and dates
-    /// remain in P4 Server syntax.
+    #[cfg_attr(feature = "lt2017_2", doc = "remain in Perforce syntax.")]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2017_2")),
+        doc = "remain in Helix Server syntax."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_2", not(feature = "lt2024_1")),
+        doc = "remain in Helix Core Server syntax."
+    )]
+    #[cfg_attr(not(feature = "lt2024_2"), doc = "remain in P4 Server syntax.")]
     pub fn get_unified_patch(&self) -> bool {
         self.mode.unified_patch
     }
@@ -507,7 +650,16 @@ impl<M> Diff2<DepotContent<M>> {
     /// Generate unified output format, showing added and deleted lines with
     /// sufficient context for compatibility with the `patch(1)` utility.
     /// Only those files that differ are included. File names and dates
-    /// remain in P4 Server syntax.
+    #[cfg_attr(feature = "lt2017_2", doc = "remain in Perforce syntax.")]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2017_2")),
+        doc = "remain in Helix Server syntax."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_2", not(feature = "lt2024_1")),
+        doc = "remain in Helix Core Server syntax."
+    )]
+    #[cfg_attr(not(feature = "lt2024_2"), doc = "remain in P4 Server syntax.")]
     pub fn set_unified_patch(&mut self, v: bool) -> &mut Self {
         self.mode.unified_patch = v;
         self
@@ -520,7 +672,16 @@ impl<M> Diff2<DepotContent<M>> {
     /// Generate unified output format, showing added and deleted lines with
     /// sufficient context for compatibility with the `patch(1)` utility.
     /// Only those files that differ are included. File names and dates
-    /// remain in P4 Server syntax.
+    #[cfg_attr(feature = "lt2017_2", doc = "remain in Perforce syntax.")]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2017_2")),
+        doc = "remain in Helix Server syntax."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_2", not(feature = "lt2024_1")),
+        doc = "remain in Helix Core Server syntax."
+    )]
+    #[cfg_attr(not(feature = "lt2024_2"), doc = "remain in P4 Server syntax.")]
     pub fn unified_patch(mut self, v: bool) -> Self {
         self.mode.unified_patch = v;
         self
@@ -874,6 +1035,7 @@ where
     }
 }
 
+#[cfg(not(feature = "lt2019_1"))]
 impl<A, B> ParameterizedSpawn<(A, B)> for Diff2<StreamSpecMode>
 where
     A: AsRef<OsStr>,
@@ -1062,6 +1224,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "lt2019_1"))]
     #[test]
     fn stream_spec_mode_bare() {
         let diff2 = Diff2::new("p4", GlobalOpts::new()).stream_spec_mode();
@@ -1069,6 +1232,7 @@ mod tests {
         assert_eq!(args_of(&diff2.setup_command("p4")), ["diff2", "-As"]);
     }
 
+    #[cfg(not(feature = "lt2019_1"))]
     #[test]
     fn stream_spec_mode_with_specs() {
         let diff2 = Diff2::new("p4", GlobalOpts::new()).stream_spec_mode();

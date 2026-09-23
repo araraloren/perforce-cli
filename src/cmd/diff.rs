@@ -45,8 +45,14 @@ pub enum DisplayOptions {
     /// Every unopened `file` is compared with the depot, and listed with a
     /// status of `same`, `diff`, or `missing`.
     ///
-    /// If you use the `-f` option together with the `-sl` option, files that
-    /// are open for edit are also compared and their status is listed.
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "If you use the `-f` flag together with the `-sl` flag, files that are open for edit are also compared and their status is listed."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2014_2"),
+        doc = "If you use the `-f` option together with the `-sl` option, files that are open for edit are also compared and their status is listed."
+    )]
     ///
     /// The compared files are passed as the file arguments of the spawned
     /// command.
@@ -148,28 +154,53 @@ impl<M: ExclusiveOption> ExclusiveOption for WorkspaceMode<M> {
 ///
 /// Entered with [`Diff::stream_spec_mode`]; the stream spec to compare
 /// against is passed as the argument of the spawned command.
+#[cfg(not(feature = "lt2019_1"))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct StreamSpecMode;
 
+#[cfg(not(feature = "lt2019_1"))]
 impl ExclusiveOption for StreamSpecMode {
     fn inject_args(&self, command: &mut Command) {
         command.arg("-As");
     }
 }
 
-/// `p4 [g-opts] diff [-doptions] [-f -t -Od] [-m max] [-soptions] [file[rev] ...]`
-///
-/// `p4 [g-opts] diff [-doptions] -As [streamname[@change]]`
+#[cfg_attr(
+    feature = "lt2014_2",
+    doc = "`p4 [g-opts] diff [-dflags -f -m max -Od -sa -sb -sd -se -sr -sl -t] [file[rev#]...]`"
+)]
+#[cfg_attr(
+    all(feature = "lt2015_1", not(feature = "lt2014_2")),
+    doc = "`p4 [g-opts] diff [-doptions -f -m max -Od -sa -sb -sd -se -sr -sl -t] [file[rev#]...]`"
+)]
+#[cfg_attr(
+    all(feature = "lt2016_1", not(feature = "lt2015_1")),
+    doc = "`p4 [g-opts] diff [-doptions] [-f -t -Od] [-m max] [-soptions] [file[rev] …]`"
+)]
+#[cfg_attr(
+    all(feature = "lt2019_1", not(feature = "lt2016_1")),
+    doc = "`p4 [g-opts] diff [-doptions] [-f -t -Od] [-m max] [-soptions] [file[rev] ...]`"
+)]
+#[cfg_attr(
+    not(feature = "lt2019_1"),
+    doc = "`p4 [g-opts] diff [-doptions] [-f -t -Od] [-m max] [-soptions] [file[rev] ...]`",
+    doc = "",
+    doc = "`p4 [g-opts] diff [-doptions] -As [streamname[@change]]`"
+)]
 ///
 /// Diff utility for comparing workspace content to depot content. (For
-/// comparing two depot paths, see `p4 diff2`.) Also for stream spec
-/// comparison.
+/// comparing two depot paths, see `p4 diff2`.)
 ///
-/// The `M` type parameter tracks the command mode at compile time. The
-/// default [`Unselected`] state offers neither the workspace content options
-/// nor `-As`; [`Self::force`], [`Self::differing_only`], and
-/// [`Self::diff_nontext`] transition to the [`WorkspaceMode`] state, while
-/// [`Self::stream_spec_mode`] transitions to the [`StreamSpecMode`] state.
+#[cfg_attr(not(feature = "lt2019_1"), doc = "Also for stream spec comparison.")]
+///
+#[cfg_attr(
+    feature = "lt2019_1",
+    doc = "The `M` type parameter tracks the command mode at compile time. The default [`Unselected`] state offers the workspace content options; [`Self::force`], [`Self::differing_only`], and [`Self::diff_nontext`] transition to the [`WorkspaceMode`] state."
+)]
+#[cfg_attr(
+    not(feature = "lt2019_1"),
+    doc = "The `M` type parameter tracks the command mode at compile time. The default [`Unselected`] state offers neither the workspace content options nor `-As`; [`Self::force`], [`Self::differing_only`], and [`Self::diff_nontext`] transition to the [`WorkspaceMode`] state, while [`Self::stream_spec_mode`] transitions to the [`StreamSpecMode`] state."
+)]
 #[derive(Debug, Clone, Default)]
 pub struct Diff<M = Unselected> {
     bin: PathBuf,
@@ -269,15 +300,20 @@ impl Diff<Unselected> {
     /// Can be used with a streamname, or with a streamname at a specific
     /// changelist number.
     ///
-    /// Although this option requires the user have at least the list access
-    /// to the stream path, it ignores any other entry in the protections
-    /// table, including any minus sign (`-`) that would otherwise block the
-    /// operation.
+    #[cfg_attr(
+        feature = "lt2024_2",
+        doc = "Limitation: Although this option requires the user have at least the `list` access to the stream path, it ignores any other entry in the protections table, including any minus sign (`-`) that would otherwise block the operation."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_2"),
+        doc = "Although this option requires the user have at least the `list` access to the stream path, it ignores any other entry in the protections table, including any minus sign (`-`) that would otherwise block the operation."
+    )]
     ///
     /// Transitions this command to the [`StreamSpecMode`] state. The stream
     /// spec to compare against is passed as the argument of the spawned
     /// command ([`ParameterizedSpawn::spawn_with`]); without one, the opened
     /// stream spec is diffed against its have version.
+    #[cfg(not(feature = "lt2019_1"))]
     pub fn stream_spec_mode(self) -> Diff<StreamSpecMode> {
         Diff {
             bin: self.bin,
@@ -293,8 +329,22 @@ impl<M> Diff<M> {
     ///
     /// -doptions
     ///
-    /// Pass options to the underlying diff routine (see Usage notes for
-    /// details).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "Pass flags to the underlying diff routine (see the Usage Notes below for details)"
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "Pass options to the underlying diff routine (see the Usage Notes below for details)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2015_1")),
+        doc = "Pass options to the underlying diff routine (see Usage Notes for details)."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_1"),
+        doc = "Pass options to the underlying diff routine (see Usage notes for details)."
+    )]
     pub fn get_diff_options(&self) -> Option<&DiffOptions> {
         self.diff_opts.as_ref()
     }
@@ -303,8 +353,22 @@ impl<M> Diff<M> {
     ///
     /// -doptions
     ///
-    /// Pass options to the underlying diff routine (see Usage notes for
-    /// details).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "Pass flags to the underlying diff routine (see the Usage Notes below for details)"
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "Pass options to the underlying diff routine (see the Usage Notes below for details)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2015_1")),
+        doc = "Pass options to the underlying diff routine (see Usage Notes for details)."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_1"),
+        doc = "Pass options to the underlying diff routine (see Usage notes for details)."
+    )]
     pub fn set_diff_options(&mut self, v: impl Into<DiffOptions>) -> &mut Self {
         self.diff_opts = Some(v.into());
         self
@@ -314,8 +378,22 @@ impl<M> Diff<M> {
     ///
     /// -doptions
     ///
-    /// Pass options to the underlying diff routine (see Usage notes for
-    /// details).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "Pass flags to the underlying diff routine (see the Usage Notes below for details)"
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "Pass options to the underlying diff routine (see the Usage Notes below for details)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2015_1")),
+        doc = "Pass options to the underlying diff routine (see Usage Notes for details)."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_1"),
+        doc = "Pass options to the underlying diff routine (see Usage notes for details)."
+    )]
     pub fn diff_options(mut self, v: impl Into<DiffOptions>) -> Self {
         self.diff_opts = Some(v.into());
         self
@@ -327,7 +405,23 @@ impl<M: ExclusiveOption> Diff<M> {
     ///
     /// g-opts
     ///
-    /// See [Global options](GlobalOpts).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "See the [Global Options](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "See the [“Global Options”](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2017_1", not(feature = "lt2015_1")),
+        doc = "See [“Global Options”](GlobalOpts)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2018_2", not(feature = "lt2017_1")),
+        doc = "See [Global Options](GlobalOpts)."
+    )]
+    #[cfg_attr(not(feature = "lt2018_2"), doc = "See [Global options](GlobalOpts).")]
     pub fn get_global_opts(&self) -> &GlobalOpts {
         &self.global_opts
     }
@@ -336,7 +430,23 @@ impl<M: ExclusiveOption> Diff<M> {
     ///
     /// g-opts
     ///
-    /// See [Global options](GlobalOpts).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "See the [Global Options](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "See the [“Global Options”](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2017_1", not(feature = "lt2015_1")),
+        doc = "See [“Global Options”](GlobalOpts)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2018_2", not(feature = "lt2017_1")),
+        doc = "See [Global Options](GlobalOpts)."
+    )]
+    #[cfg_attr(not(feature = "lt2018_2"), doc = "See [Global options](GlobalOpts).")]
     pub fn set_global_opts(&mut self, v: GlobalOpts) -> &mut Self {
         self.global_opts = v;
         self
@@ -346,7 +456,23 @@ impl<M: ExclusiveOption> Diff<M> {
     ///
     /// g-opts
     ///
-    /// See [Global options](GlobalOpts).
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "See the [Global Options](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2015_1", not(feature = "lt2014_2")),
+        doc = "See the [“Global Options”](GlobalOpts) section."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2017_1", not(feature = "lt2015_1")),
+        doc = "See [“Global Options”](GlobalOpts)."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2018_2", not(feature = "lt2017_1")),
+        doc = "See [Global Options](GlobalOpts)."
+    )]
+    #[cfg_attr(not(feature = "lt2018_2"), doc = "See [Global options](GlobalOpts).")]
     pub fn global_opts(mut self, v: GlobalOpts) -> Self {
         self.global_opts = v;
         self
@@ -448,10 +574,21 @@ impl<M> Diff<WorkspaceMode<M>> {
 impl Diff<WorkspaceMode<Unselected>> {
     /// # Description
     ///
-    /// -soptions
+    #[cfg_attr(feature = "lt2015_1", doc = "-sa, -sb, -sd, -se, -sr, -sl file ...")]
+    #[cfg_attr(not(feature = "lt2015_1"), doc = "-soptions")]
     ///
-    /// Pass display options to the underlying diff routine (see Usage notes
-    /// for details).
+    #[cfg_attr(
+        feature = "lt2015_1",
+        doc = "Pass one of the display options; see the individual option descriptions for details."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2015_1")),
+        doc = "Pass display options to the underlying diff routine (see Usage Notes for details)."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_1"),
+        doc = "Pass display options to the underlying diff routine (see Usage notes for details)."
+    )]
     ///
     /// Transitions this command to the [`WorkspaceDisplayMode`] state with
     /// the display `options` set; `-m max` is unavailable in this state.
@@ -473,9 +610,14 @@ impl Diff<WorkspaceMode<Unselected>> {
     ///
     /// -m max
     ///
-    /// Limit output to diffs (or status) of only the first `max` files,
-    /// unless the `-s` option is used, in which case the `-m` option is
-    /// ignored.
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "Limit output to diffs (or status) of only the first `max` files, unless the `-s` flag is used, in which case the `-m` flag is ignored."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2014_2"),
+        doc = "Limit output to diffs (or status) of only the first `max` files, unless the `-s` option is used, in which case the `-m` option is ignored."
+    )]
     ///
     /// Transitions this command to the [`WorkspaceRegularMode`] state with
     /// the limit set to `max`; `-soptions` is unavailable in this state.
@@ -497,20 +639,42 @@ impl Diff<WorkspaceMode<Unselected>> {
 impl Diff<WorkspaceMode<WorkspaceDisplayMode>> {
     /// # Description
     ///
-    /// -soptions
+    #[cfg_attr(feature = "lt2015_1", doc = "-sa, -sb, -sd, -se, -sr, -sl file ...")]
+    #[cfg_attr(not(feature = "lt2015_1"), doc = "-soptions")]
     ///
-    /// Pass display options to the underlying diff routine (see Usage notes
-    /// for details).
+    #[cfg_attr(
+        feature = "lt2015_1",
+        doc = "Pass one of the display options; see the individual option descriptions for details."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2015_1")),
+        doc = "Pass display options to the underlying diff routine (see Usage Notes for details)."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_1"),
+        doc = "Pass display options to the underlying diff routine (see Usage notes for details)."
+    )]
     pub fn get_display_options(&self) -> &DisplayOptions {
         &self.mode.mode.display_opts
     }
 
     /// # Description
     ///
-    /// -soptions
+    #[cfg_attr(feature = "lt2015_1", doc = "-sa, -sb, -sd, -se, -sr, -sl file ...")]
+    #[cfg_attr(not(feature = "lt2015_1"), doc = "-soptions")]
     ///
-    /// Pass display options to the underlying diff routine (see Usage notes
-    /// for details).
+    #[cfg_attr(
+        feature = "lt2015_1",
+        doc = "Pass one of the display options; see the individual option descriptions for details."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2015_1")),
+        doc = "Pass display options to the underlying diff routine (see Usage Notes for details)."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_1"),
+        doc = "Pass display options to the underlying diff routine (see Usage notes for details)."
+    )]
     pub fn set_display_options(&mut self, v: DisplayOptions) -> &mut Self {
         self.mode.mode.display_opts = v;
         self
@@ -522,9 +686,14 @@ impl Diff<WorkspaceMode<WorkspaceRegularMode>> {
     ///
     /// -m max
     ///
-    /// Limit output to diffs (or status) of only the first `max` files,
-    /// unless the `-s` option is used, in which case the `-m` option is
-    /// ignored.
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "Limit output to diffs (or status) of only the first `max` files, unless the `-s` flag is used, in which case the `-m` flag is ignored."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2014_2"),
+        doc = "Limit output to diffs (or status) of only the first `max` files, unless the `-s` option is used, in which case the `-m` option is ignored."
+    )]
     pub fn get_limit(&self) -> u64 {
         self.mode.mode.limit
     }
@@ -533,9 +702,14 @@ impl Diff<WorkspaceMode<WorkspaceRegularMode>> {
     ///
     /// -m max
     ///
-    /// Limit output to diffs (or status) of only the first `max` files,
-    /// unless the `-s` option is used, in which case the `-m` option is
-    /// ignored.
+    #[cfg_attr(
+        feature = "lt2014_2",
+        doc = "Limit output to diffs (or status) of only the first `max` files, unless the `-s` flag is used, in which case the `-m` flag is ignored."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2014_2"),
+        doc = "Limit output to diffs (or status) of only the first `max` files, unless the `-s` option is used, in which case the `-m` option is ignored."
+    )]
     pub fn set_limit(&mut self, v: u64) -> &mut Self {
         self.mode.mode.limit = v;
         self
@@ -600,6 +774,7 @@ where
     }
 }
 
+#[cfg(not(feature = "lt2019_1"))]
 impl<I> ParameterizedSpawn<(I,)> for Diff<StreamSpecMode>
 where
     I: AsRef<OsStr>,
@@ -627,6 +802,7 @@ where
     }
 }
 
+#[cfg(not(feature = "lt2019_1"))]
 impl ParameterizedSpawn<()> for Diff<StreamSpecMode> {
     type Output = Child;
     type Error = std::io::Error;
@@ -729,6 +905,7 @@ mod tests {
         assert_eq!(args_of(&diff.setup_command("p4")), ["diff", "-m", "10"]);
     }
 
+    #[cfg(not(feature = "lt2019_1"))]
     #[test]
     fn stream_spec_mode_bare() {
         let diff = Diff::new("p4", GlobalOpts::new()).stream_spec_mode();
@@ -736,6 +913,7 @@ mod tests {
         assert_eq!(args_of(&diff.setup_command("p4")), ["diff", "-As"]);
     }
 
+    #[cfg(not(feature = "lt2019_1"))]
     #[test]
     fn stream_spec_mode_with_spec() {
         let diff = Diff::new("p4", GlobalOpts::new()).stream_spec_mode();
@@ -748,6 +926,7 @@ mod tests {
         assert_eq!(args_of(&command), ["diff", "-As", "myStream@head"]);
     }
 
+    #[cfg(not(feature = "lt2019_1"))]
     #[test]
     fn stream_spec_mode_preserves_diff_options() {
         let diff = Diff::new("p4", GlobalOpts::new())

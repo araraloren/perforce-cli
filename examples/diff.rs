@@ -4,12 +4,19 @@
 //! the command's type parameter:
 //!
 //! - [`Diff<Unselected>`]: no mode selected yet — enter workspace mode with
-//!   [`Diff::force`], [`Diff::differing_only`], or [`Diff::diff_nontext`], or
-//!   stream-spec mode with [`Diff::stream_spec_mode`].
+//!   [`Diff::force`], [`Diff::differing_only`], or [`Diff::diff_nontext`]
+#![cfg_attr(feature = "lt2019_1", doc = ".")]
+#![cfg_attr(
+    not(feature = "lt2019_1"),
+    doc = ", or stream-spec mode with [`Diff::stream_spec_mode`]."
+)]
 //! - [`Diff<WorkspaceMode<M>>`]: diff workspace files against the depot. The
 //!   inner `M` parameter isolates `-m max` ([`WorkspaceRegularMode`]) from
 //!   `-soptions` ([`WorkspaceDisplayMode`]).
-//! - [`Diff<StreamSpecMode>`]: diff stream specs via `-As`.
+#![cfg_attr(
+    not(feature = "lt2019_1"),
+    doc = "- [`Diff<StreamSpecMode>`]: diff stream specs via `-As`."
+)]
 //!
 //! Run with:
 //!
@@ -22,7 +29,9 @@ use std::ffi::OsStr;
 use perforce_cli::P4Cli;
 use perforce_cli::cmd::DiffOptionsBuilder;
 use perforce_cli::cmd::diff::DisplayOptions;
-use perforce_cli::spawn::{ParameterizedOutput, ParameterizedSpawn};
+use perforce_cli::spawn::ParameterizedOutput;
+#[cfg(not(feature = "lt2019_1"))]
+use perforce_cli::spawn::ParameterizedSpawn;
 
 fn main() -> std::io::Result<()> {
     let p4 = P4Cli::default();
@@ -56,9 +65,12 @@ fn main() -> std::io::Result<()> {
     // Stream-spec mode: diff a privately edited stream spec against the head
     // version of another stream. `stream_spec_mode` transitions the command
     // into `StreamSpecMode`; the stream spec is passed to `spawn_with`.
-    let mut stream_diff = p4.diff().stream_spec_mode();
-    let mut child = stream_diff.spawn_with(("//streams/main@head",))?;
-    child.wait()?;
+    #[cfg(not(feature = "lt2019_1"))]
+    {
+        let mut stream_diff = p4.diff().stream_spec_mode();
+        let mut child = stream_diff.spawn_with(("//streams/main@head",))?;
+        child.wait()?;
+    }
 
     Ok(())
 }
