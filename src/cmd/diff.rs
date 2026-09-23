@@ -791,7 +791,7 @@ where
     /// specific change, and `@=change` the shelved version at a specific
     /// change.
     ///
-    /// Use [`spawn()`](SpawnExt::spawn) (no arguments) to diff the opened
+    /// Use [`spawn()`](crate::spawn::SpawnExt::spawn) (no arguments) to diff the opened
     /// stream spec against its have version.
     fn spawn_with(&mut self, (stream_spec,): (I,)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)

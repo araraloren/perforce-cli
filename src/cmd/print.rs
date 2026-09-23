@@ -277,12 +277,14 @@ impl LineEnding {
 ///
 /// Print the contents of a depot file revision.
 ///
-/// The `M` type parameter tracks which of the three forms of the command
-/// is in use at compile time. The default [`Unselected`] state prints
-/// files without local options; setting any standard option such as
-/// [`Self::all_revisions`] transitions to [`StandardPrintMode`],
-/// [`Self::from_unload_depot`] transitions to [`UnloadDepotMode`], and
-/// [`Self::extract_attribute`] transitions to [`AttributeTraitMode`].
+#[cfg_attr(
+    feature = "lt2024_2",
+    doc = "The `M` type parameter tracks which of the two forms of the command is in use at compile time. The default [`Unselected`] state prints files without local options; setting any standard option such as [`Self::all_revisions`] transitions to [`StandardPrintMode`], and [`Self::from_unload_depot`] transitions to [`UnloadDepotMode`]."
+)]
+#[cfg_attr(
+    not(feature = "lt2024_2"),
+    doc = "The `M` type parameter tracks which of the three forms of the command is in use at compile time. The default [`Unselected`] state prints files without local options; setting any standard option such as [`Self::all_revisions`] transitions to [`StandardPrintMode`], [`Self::from_unload_depot`] transitions to [`UnloadDepotMode`], and [`Self::extract_attribute`] transitions to [`AttributeTraitMode`]."
+)]
 #[derive(Debug, Clone, Default)]
 pub struct Print<M = Unselected> {
     bin: PathBuf,

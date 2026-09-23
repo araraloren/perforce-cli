@@ -296,7 +296,12 @@ impl ExclusiveOption for SyncTimeMode {
 /// The `M` type parameter tracks the top-level mode at compile time. The
 /// default [`Unselected`] state syncs files without local options; setting
 /// any regular option or calling a mode-transition method moves into
-/// [`RegularMode`]; [`Self::sync_time`] moves into [`SyncTimeMode`].
+/// [`RegularMode`]
+#[cfg_attr(feature = "lt2025_1", doc = ".")]
+#[cfg_attr(
+    not(feature = "lt2025_1"),
+    doc = "; [`Self::sync_time`] moves into [`SyncTimeMode`]."
+)]
 #[derive(Debug, Clone, Default)]
 pub struct Sync<M = Unselected> {
     bin: PathBuf,

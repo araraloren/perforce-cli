@@ -3,19 +3,19 @@
 //! `p4 diff` has three mutually exclusive modes, tracked at compile time by
 //! the command's type parameter:
 //!
-//! - [`Diff<Unselected>`]: no mode selected yet — enter workspace mode with
-//!   [`Diff::force`], [`Diff::differing_only`], or [`Diff::diff_nontext`]
+//! - [`Diff<Unselected>`](perforce_cli::cmd::diff::Diff): no mode selected yet — enter workspace mode with
+//!   [`Diff::force`](perforce_cli::cmd::diff::Diff::force), [`Diff::differing_only`](perforce_cli::cmd::diff::Diff::differing_only), or [`Diff::diff_nontext`](perforce_cli::cmd::diff::Diff::diff_nontext)
 #![cfg_attr(feature = "lt2019_1", doc = ".")]
 #![cfg_attr(
     not(feature = "lt2019_1"),
-    doc = ", or stream-spec mode with [`Diff::stream_spec_mode`]."
+    doc = ", or stream-spec mode with [`Diff::stream_spec_mode`](perforce_cli::cmd::diff::Diff::stream_spec_mode)."
 )]
-//! - [`Diff<WorkspaceMode<M>>`]: diff workspace files against the depot. The
-//!   inner `M` parameter isolates `-m max` ([`WorkspaceRegularMode`]) from
-//!   `-soptions` ([`WorkspaceDisplayMode`]).
+//! - [`Diff<WorkspaceMode<M>>`](perforce_cli::cmd::diff::Diff): diff workspace files against the depot. The
+//!   inner `M` parameter isolates `-m max` ([`WorkspaceRegularMode`](perforce_cli::cmd::diff::WorkspaceRegularMode)) from
+//!   `-soptions` ([`WorkspaceDisplayMode`](perforce_cli::cmd::diff::WorkspaceDisplayMode)).
 #![cfg_attr(
     not(feature = "lt2019_1"),
-    doc = "- [`Diff<StreamSpecMode>`]: diff stream specs via `-As`."
+    doc = "- [`Diff<StreamSpecMode>`](perforce_cli::cmd::diff::Diff): diff stream specs via `-As`."
 )]
 //!
 //! Run with:

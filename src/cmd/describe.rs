@@ -22,10 +22,19 @@ impl ExclusiveOption for ShortSummaryMode {
     }
 }
 
-/// Detail diff output of `p4 describe` (`-a` and `-d`).
-///
-/// Entered with [`Describe::display_added_text_content`] or
-/// [`Describe::diff_options`].
+#[cfg_attr(
+    feature = "lt2017_2",
+    doc = "Detail diff output of `p4 describe` (`-d`).",
+    doc = "",
+    doc = "Entered with [`Describe::diff_options`]."
+)]
+#[cfg_attr(
+    not(feature = "lt2017_2"),
+    doc = "Detail diff output of `p4 describe` (`-a` and `-d`).",
+    doc = "",
+    doc = "Entered with [`Describe::display_added_text_content`] or",
+    doc = "[`Describe::diff_options`]."
+)]
 #[derive(Debug, Clone, Default)]
 pub struct DetailDiffMode {
     diff_options: Option<DiffOptions>,
@@ -99,10 +108,15 @@ impl ExclusiveOption for DetailDiffMode {
 )]
 ///
 /// The `M` type parameter tracks the output mode at compile time. The
-/// default [`Unselected`] state offers neither `-s` nor `-a`/`-d`;
-/// [`Self::short_summary_output`] transitions to the [`ShortSummaryMode`]
-/// state, while [`Self::display_added_text_content`] and
-/// [`Self::diff_options`] transition to the [`DetailDiffMode`] state.
+/// default [`Unselected`] state offers neither `-s` nor
+#[cfg_attr(
+    feature = "lt2017_2",
+    doc = "`-d`; [`Self::short_summary_output`] transitions to the [`ShortSummaryMode`] state, while [`Self::diff_options`] transitions to the [`DetailDiffMode`] state."
+)]
+#[cfg_attr(
+    not(feature = "lt2017_2"),
+    doc = "`-a`/`-d`; [`Self::short_summary_output`] transitions to the [`ShortSummaryMode`] state, while [`Self::display_added_text_content`] and [`Self::diff_options`] transition to the [`DetailDiffMode`] state."
+)]
 #[derive(Debug, Clone, Default)]
 pub struct Describe<M = Unselected> {
     bin: PathBuf,

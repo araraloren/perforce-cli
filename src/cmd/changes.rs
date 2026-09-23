@@ -558,11 +558,17 @@ impl<L: ExclusiveOption> Changes<L> {
 
     /// # Description
     ///
-    /// `-u user` / `--me`
+    #[cfg_attr(feature = "lt2016_1", doc = "-u user")]
+    #[cfg_attr(not(feature = "lt2016_1"), doc = "-u user / --me")]
     ///
-    /// List only changes made from the named user, or, with
-    /// [`User::Me`], the current user (equivalent to `-u $P4USER`).
-    /// This option can be repeated to filter for multiple users.
+    #[cfg_attr(
+        feature = "lt2016_1",
+        doc = "List only changes made from the named user. This option can be repeated to filter for multiple users."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2016_1"),
+        doc = "List only changes made from the named user, or, with [`User::Me`], the current user (equivalent to `-u $P4USER`). This option can be repeated to filter for multiple users."
+    )]
     pub fn get_filter_users(&self) -> Option<&[User]> {
         self.filter_users.as_deref()
     }

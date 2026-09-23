@@ -50,9 +50,11 @@ impl ExclusiveOption for FileEditMode {
 ///
 /// No list of files is allowed, and `-So` may only be combined with
 /// `-c changelist`. Entered with [`Edit::edit_stream_spec`].
+#[cfg(not(feature = "lt2019_1"))]
 #[derive(Debug, Clone, Copy, Default)]
 pub struct StreamSpecEditMode;
 
+#[cfg(not(feature = "lt2019_1"))]
 impl ExclusiveOption for StreamSpecEditMode {
     fn inject_args(&self, command: &mut Command) {
         command.arg("-So");
@@ -75,9 +77,12 @@ impl ExclusiveOption for StreamSpecEditMode {
 /// The `M` type parameter tracks the command form at compile time. The
 /// default [`Unselected`] state opens plain files with no edit-mode options;
 /// [`Self::keep_workspace`], [`Self::preview`], [`Self::remote_server`], and
-/// [`Self::filetype`] transition to the [`FileEditMode`] state, while
-/// [`Self::edit_stream_spec`] transitions to the [`StreamSpecEditMode`]
-/// state.
+/// [`Self::filetype`] transition to the [`FileEditMode`] state
+#[cfg_attr(feature = "lt2019_1", doc = ".")]
+#[cfg_attr(
+    not(feature = "lt2019_1"),
+    doc = ", while [`Self::edit_stream_spec`] transitions to the [`StreamSpecEditMode`] state."
+)]
 #[derive(Debug, Clone, Default)]
 pub struct Edit<M = Unselected> {
     bin: PathBuf,

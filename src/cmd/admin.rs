@@ -807,7 +807,7 @@ where
     /// with piped standard output and error streams; use the returned
     /// [`Child`] handle to wait for it or interact with it.
     ///
-    /// Use [`spawn()`](SpawnExt::spawn) (no arguments) to use the default
+    /// Use [`spawn()`](crate::spawn::SpawnExt::spawn) (no arguments) to use the default
     /// journal name.
     fn spawn_with(&mut self, (prefix,): (I,)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
