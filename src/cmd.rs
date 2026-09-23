@@ -27,7 +27,6 @@ pub use describe::Describe;
 pub use diff::Diff;
 pub use diff::DisplayOptions;
 pub use diff2::Diff2;
-pub use diff2::Diff2Parameters;
 pub use edit::Edit;
 pub use filelog::FileLog;
 pub use print::Print;

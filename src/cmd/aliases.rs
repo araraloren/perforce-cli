@@ -27,15 +27,14 @@ impl SubCommand for Aliases {
     }
 }
 
-impl ParameterizedSpawn for Aliases {
-    type Input<'a> = ();
-    type Output<'a> = Child;
+impl ParameterizedSpawn<()> for Aliases {
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 aliases` as a child process with piped standard output and
     /// error streams; use the returned [`Child`] handle to wait for it or
     /// interact with it.
-    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (): ()) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

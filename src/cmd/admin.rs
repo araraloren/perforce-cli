@@ -1,4 +1,3 @@
-#[cfg(not(feature = "lt2025_2"))]
 use std::ffi::OsStr;
 
 use std::path::PathBuf;
@@ -7,7 +6,7 @@ use std::process::{Child, Command, Stdio};
 use super::{ExclusiveOption, SubCommand, Unselected};
 
 use crate::global::GlobalOpts;
-use crate::spawn::{ParameterizedSpawn, SpawnExt};
+use crate::spawn::ParameterizedSpawn;
 
 /// Entry point for the `p4 admin` subcommands.
 ///
@@ -221,110 +220,102 @@ impl<T: SubCommand> Admin<T> {
     }
 }
 
-impl ParameterizedSpawn for Admin<Stop> {
-    type Input<'a> = ();
-    type Output<'a> = Child;
+impl ParameterizedSpawn<()> for Admin<Stop> {
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 admin stop` as a child process with piped standard output
     /// and error streams; use the returned [`Child`] handle to wait for it or
     /// interact with it.
-    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (): ()) -> Result<Self::Output, Self::Error> {
         self.spawn_piped()
     }
 }
 
-impl ParameterizedSpawn for Admin<Restart> {
-    type Input<'a> = ();
-    type Output<'a> = Child;
+impl ParameterizedSpawn<()> for Admin<Restart> {
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 admin restart` as a child process with piped standard
     /// output and error streams; use the returned [`Child`] handle to wait
     /// for it or interact with it.
-    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (): ()) -> Result<Self::Output, Self::Error> {
         self.spawn_piped()
     }
 }
 
-impl<S: ExclusiveOption> ParameterizedSpawn for Admin<UpdateSpecDepot<S>> {
-    type Input<'a> = ();
-    type Output<'a> = Child;
+impl<S: ExclusiveOption> ParameterizedSpawn<()> for Admin<UpdateSpecDepot<S>> {
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 admin updatespecdepot` as a child process with piped
     /// standard output and error streams; use the returned [`Child`] handle
     /// to wait for it or interact with it.
-    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (): ()) -> Result<Self::Output, Self::Error> {
         self.spawn_piped()
     }
 }
 
-impl<T: ExclusiveOption> ParameterizedSpawn for Admin<ResetPassword<T>> {
-    type Input<'a> = ();
-    type Output<'a> = Child;
+impl<T: ExclusiveOption> ParameterizedSpawn<()> for Admin<ResetPassword<T>> {
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 admin resetpassword` as a child process with piped standard
     /// output and error streams; use the returned [`Child`] handle to wait
     /// for it or interact with it.
-    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (): ()) -> Result<Self::Output, Self::Error> {
         self.spawn_piped()
     }
 }
 
 #[cfg(not(feature = "lt2015_1"))]
-impl ParameterizedSpawn for Admin<SetLdapUsers> {
-    type Input<'a> = ();
-    type Output<'a> = Child;
+impl ParameterizedSpawn<()> for Admin<SetLdapUsers> {
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 admin setldapusers` as a child process with piped standard
     /// output and error streams; use the returned [`Child`] handle to wait
     /// for it or interact with it.
-    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (): ()) -> Result<Self::Output, Self::Error> {
         self.spawn_piped()
     }
 }
 
 #[cfg(not(feature = "lt2018_1"))]
-impl ParameterizedSpawn for Admin<EndJournal> {
-    type Input<'a> = ();
-    type Output<'a> = Child;
+impl ParameterizedSpawn<()> for Admin<EndJournal> {
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 admin endjournal` as a child process with piped standard
     /// output and error streams; use the returned [`Child`] handle to wait
     /// for it or interact with it.
-    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (): ()) -> Result<Self::Output, Self::Error> {
         self.spawn_piped()
     }
 }
 
 #[cfg(not(feature = "lt2023_1"))]
-impl ParameterizedSpawn for Admin<SysInfo> {
-    type Input<'a> = ();
-    type Output<'a> = Child;
+impl ParameterizedSpawn<()> for Admin<SysInfo> {
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 admin sysinfo` as a child process with piped standard
     /// output and error streams; use the returned [`Child`] handle to wait
     /// for it or interact with it.
-    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (): ()) -> Result<Self::Output, Self::Error> {
         self.spawn_piped()
     }
 }
 
 #[cfg(not(feature = "lt2023_1"))]
-impl ParameterizedSpawn for Admin<ResourceMonitor> {
-    type Input<'a> = ();
-    type Output<'a> = Child;
+impl ParameterizedSpawn<()> for Admin<ResourceMonitor> {
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 admin resource-monitor` as a child process with piped
     /// standard output and error streams; use the returned [`Child`] handle
     /// to wait for it or interact with it.
-    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (): ()) -> Result<Self::Output, Self::Error> {
         self.spawn_piped()
     }
 }
@@ -496,9 +487,11 @@ impl<C: ExclusiveOption> SubCommand for CheckPoint<C> {
     }
 }
 
-impl<C: ExclusiveOption> ParameterizedSpawn for Admin<CheckPoint<C>> {
-    type Input<'a> = Option<&'a str>;
-    type Output<'a> = Child;
+impl<C: ExclusiveOption, I> ParameterizedSpawn<(I,)> for Admin<CheckPoint<C>>
+where
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 admin checkpoint` as a child process with piped standard
@@ -507,22 +500,30 @@ impl<C: ExclusiveOption> ParameterizedSpawn for Admin<CheckPoint<C>> {
     ///
     /// Pass `Some(prefix)` to name the checkpoint with the given prefix, or
     /// `None` to use the default checkpoint name.
-    fn spawn_with<'a>(&mut self, prefix: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
-        let mut command = self.setup_command(&self.bin);
-
-        if let Some(prefix) = prefix {
-            command.arg(prefix);
-        }
-        command
+    fn spawn_with(&mut self, (prefix,): (I,)) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
+            .arg(prefix)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
     }
 }
 
-impl<C: ExclusiveOption> SpawnExt for Admin<CheckPoint<C>> {
-    fn spawn<'a>(&mut self) -> Result<Self::Output<'a>, Self::Error> {
-        self.spawn_with(None)
+impl<C: ExclusiveOption> ParameterizedSpawn<()> for Admin<CheckPoint<C>> {
+    type Output = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 admin checkpoint` as a child process with piped standard
+    /// output and error streams; use the returned [`Child`] handle to wait
+    /// for it or interact with it.
+    ///
+    /// Pass `Some(prefix)` to name the checkpoint with the given prefix, or
+    /// `None` to use the default checkpoint name.
+    fn spawn_with(&mut self, _: ()) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
     }
 }
 
@@ -795,33 +796,41 @@ impl SubCommand for Journal {
     }
 }
 
-impl ParameterizedSpawn for Admin<Journal> {
-    type Input<'a> = Option<&'a str>;
-    type Output<'a> = Child;
+impl<I> ParameterizedSpawn<(I,)> for Admin<Journal>
+where
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
-    /// Spawns `p4 admin journal` as a child process with piped standard
-    /// output and error streams; use the returned [`Child`] handle to wait
-    /// for it or interact with it.
+    /// Spawns `p4 admin journal` with the given prefix as a child process
+    /// with piped standard output and error streams; use the returned
+    /// [`Child`] handle to wait for it or interact with it.
     ///
-    /// Pass `Some(prefix)` to name the journal with the given prefix, or
-    /// `None` to use the default journal name.
-    fn spawn_with<'a>(&mut self, prefix: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
-        let mut command = self.setup_command(&self.bin);
-
-        if let Some(prefix) = prefix {
-            command.arg(prefix);
-        }
-        command
+    /// Use [`spawn()`](SpawnExt::spawn) (no arguments) to use the default
+    /// journal name.
+    fn spawn_with(&mut self, (prefix,): (I,)) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
+            .arg(prefix)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
     }
 }
 
-impl SpawnExt for Admin<Journal> {
-    fn spawn<'a>(&mut self) -> Result<Self::Output<'a>, Self::Error> {
-        self.spawn_with(None)
+impl ParameterizedSpawn<()> for Admin<Journal> {
+    type Output = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 admin journal` without a journal prefix as a child process
+    /// with piped standard output and error streams; the default journal name
+    /// is used. Use the returned [`Child`] handle to wait for it or interact
+    /// with it.
+    fn spawn_with(&mut self, _: ()) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
     }
 }
 
@@ -1504,9 +1513,12 @@ impl Admin<ReplicaFilterReconcile<Unselected>> {
 }
 
 #[cfg(not(feature = "lt2025_2"))]
-impl<M: ExclusiveOption> ParameterizedSpawn for Admin<ReplicaFilterReconcile<M>> {
-    type Input<'a> = &'a [&'a OsStr];
-    type Output<'a> = Child;
+impl<M: ExclusiveOption, S, I> ParameterizedSpawn<(S,)> for Admin<ReplicaFilterReconcile<M>>
+where
+    S: IntoIterator<Item = I>,
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 admin replica-filter-reconcile` for the given tables as a
@@ -1514,7 +1526,7 @@ impl<M: ExclusiveOption> ParameterizedSpawn for Admin<ReplicaFilterReconcile<M>>
     /// returned [`Child`] handle to wait for it or interact with it.
     ///
     /// Pass an empty slice to reconcile all applicable database tables.
-    fn spawn_with<'a>(&mut self, tables: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (tables,): (S,)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .args(tables)
             .stdout(Stdio::piped())

@@ -221,9 +221,12 @@ impl Edit<Unselected> {
     }
 }
 
-impl ParameterizedSpawn for Edit<Unselected> {
-    type Input<'a> = &'a [&'a OsStr];
-    type Output<'a> = Child;
+impl<S, I> ParameterizedSpawn<(S,)> for Edit<Unselected>
+where
+    S: IntoIterator<Item = I>,
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 edit` for the given files as a child process with piped
@@ -232,7 +235,7 @@ impl ParameterizedSpawn for Edit<Unselected> {
     ///
     /// This corresponds to the file form of the command:
     /// `p4 edit [options] file ...`.
-    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (files,): (S,)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())
@@ -241,9 +244,12 @@ impl ParameterizedSpawn for Edit<Unselected> {
     }
 }
 
-impl ParameterizedSpawn for Edit<FileEditMode> {
-    type Input<'a> = &'a [&'a OsStr];
-    type Output<'a> = Child;
+impl<S, I> ParameterizedSpawn<(S,)> for Edit<FileEditMode>
+where
+    S: IntoIterator<Item = I>,
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 edit` for the given files as a child process with piped
@@ -252,7 +258,7 @@ impl ParameterizedSpawn for Edit<FileEditMode> {
     ///
     /// This corresponds to the file form of the command:
     /// `p4 edit [options] file ...`.
-    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (files,): (S,)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())
@@ -425,9 +431,8 @@ impl Edit<FileEditMode> {
 }
 
 #[cfg(not(feature = "lt2019_1"))]
-impl ParameterizedSpawn for Edit<StreamSpecEditMode> {
-    type Input<'a> = ();
-    type Output<'a> = Child;
+impl ParameterizedSpawn<()> for Edit<StreamSpecEditMode> {
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 edit -So` to open the current stream spec for edit as a
@@ -436,7 +441,7 @@ impl ParameterizedSpawn for Edit<StreamSpecEditMode> {
     ///
     /// This corresponds to the stream spec form of the command:
     /// `p4 edit -So [-c changelist]`, which takes no file arguments.
-    fn spawn_with<'a>(&mut self, (): Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (): ()) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

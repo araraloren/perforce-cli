@@ -48,7 +48,7 @@ fn main() -> std::io::Result<()> {
 
     // `p4 print -q //depot/project/README.md`, output captured.
     let mut print = p4.print().quiet_mode(true);
-    let output = print.output_with(&[OsStr::new("//depot/project/README.md")])?;
+    let output = print.output_with((&[OsStr::new("//depot/project/README.md")],))?;
     println!("{}", String::from_utf8_lossy(&output.stdout));
 
     Ok(())
@@ -79,22 +79,22 @@ them:
 ```rust
 use std::ffi::OsStr;
 
-use perforce_cli::spawn::ParameterizedSpawn;
+use perforce_cli::spawn::{ParameterizedSpawn, SpawnExt};
 use perforce_cli::P4Cli;
 
 let p4 = P4Cli::default();
 
 // `p4 sync -f -q`
 let mut force_sync = p4.sync().force(true).quiet_mode(true);
-force_sync.spawn_with(&[])?;
+force_sync.spawn_with((Vec::<&OsStr>::new(),))?;
 
 // `p4 sync -s`
 let mut safe_sync = p4.sync().enable_safe_check();
-safe_sync.spawn_with(&[])?;
+safe_sync.spawn_with((Vec::<&OsStr>::new(),))?;
 
 // `p4 sync -p //depot/project/...`
 let mut populate = p4.sync().populate_client_workspace();
-populate.spawn_with(&[OsStr::new("//depot/project/...")])?;
+populate.spawn_with((&[OsStr::new("//depot/project/...")],))?;
 ```
 
 Calling `enable_safe_check()` after `force(true)` does not compile — the
@@ -118,13 +118,13 @@ let output = p4.admin().stop().output()?;
 
 ### Spawning traits
 
-Every command implements `ParameterizedSpawn`, which fixes a single input
-shape via a GAT:
+Every command implements `ParameterizedSpawn<I>` for the input tuple shape(s) `I`
+it accepts; convenience methods are provided by blanket impls:
 
-| Trait | Arguments | Typical `Input<'a>` |
+| Trait | Arguments | Input tuple `I` |
 |---|---|---|
 | `SpawnExt` / `OutputExt` | none | `()` |
-| `SpawnExt1` / `OutputExt1` | one | `&'a OsStr` |
+| `SpawnExt1` / `OutputExt1` | one | `(T1,)` |
 | `SpawnExt2` / `OutputExt2` … `SpawnExt8` / `OutputExt8` | many | `(T1, …, TN)` |
 | `ParameterizedSpawn` / `ParameterizedOutput` | raw input | `spawn_with(input)` / `output_with(input)` |
 

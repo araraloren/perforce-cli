@@ -61,9 +61,12 @@ impl SubCommand for Add {
     }
 }
 
-impl ParameterizedSpawn for Add {
-    type Input<'a> = &'a [&'a OsStr];
-    type Output<'a> = Child;
+impl<S, I> ParameterizedSpawn<(S,)> for Add
+where
+    S: IntoIterator<Item = I>,
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 add` for the given files as a child process.
@@ -71,7 +74,7 @@ impl ParameterizedSpawn for Add {
     /// The child process inherits the standard input, output, and error
     /// streams of the current process, and runs asynchronously; use the
     /// returned [`Child`] handle to wait for it or interact with it.
-    fn spawn_with<'a>(&mut self, input: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (input,): (S,)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .args(input)
             .stdout(Stdio::piped())

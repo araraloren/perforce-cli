@@ -242,18 +242,18 @@ impl Describe<Unselected> {
     }
 }
 
-impl<M: ExclusiveOption> ParameterizedSpawn for Describe<M> {
-    type Input<'a> = &'a [&'a OsStr];
-    type Output<'a> = Child;
+impl<M: ExclusiveOption, S, I> ParameterizedSpawn<(S,)> for Describe<M>
+where
+    S: IntoIterator<Item = I>,
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 describe` for the given changelists as a child process with
     /// piped standard output and error streams; use the returned [`Child`]
     /// handle to wait for it or interact with it.
-    fn spawn_with<'a>(
-        &mut self,
-        changelists: Self::Input<'a>,
-    ) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (changelists,): (S,)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .args(changelists)
             .stdout(Stdio::piped())

@@ -39,7 +39,7 @@ fn main() -> std::io::Result<()> {
         .limit(10);
 
     let files = [OsStr::new("//depot/project/src/...")];
-    let output = diff.output_with(&files)?;
+    let output = diff.output_with((&files,))?;
     println!("{}", String::from_utf8_lossy(&output.stdout));
 
     // Display mode: instead of full diffs, list only the unopened files that
@@ -50,14 +50,14 @@ fn main() -> std::io::Result<()> {
         .force(true)
         .display_options(DisplayOptions::UnopenedChanged);
 
-    let output = list_changed.output_with(&files)?;
+    let output = list_changed.output_with((&files,))?;
     println!("{}", String::from_utf8_lossy(&output.stdout));
 
     // Stream-spec mode: diff a privately edited stream spec against the head
     // version of another stream. `stream_spec_mode` transitions the command
     // into `StreamSpecMode`; the stream spec is passed to `spawn_with`.
     let mut stream_diff = p4.diff().stream_spec_mode();
-    let mut child = stream_diff.spawn_with(Some("//streams/main@head"))?;
+    let mut child = stream_diff.spawn_with(("//streams/main@head",))?;
     child.wait()?;
 
     Ok(())

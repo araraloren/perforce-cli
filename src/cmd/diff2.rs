@@ -7,7 +7,7 @@ use std::{
 use super::{DiffOptions, ExclusiveOption, SubCommand, Unselected};
 
 use crate::global::GlobalOpts;
-use crate::spawn::{ParameterizedSpawn, SpawnExt, SpawnExt1, SpawnExt2};
+use crate::spawn::ParameterizedSpawn;
 
 /// The `-b branch` sub-mode of the [`DepotContent`] state: diff files in
 /// two branched codelines through a branch mapping.
@@ -59,23 +59,6 @@ impl ExclusiveOption for StreamSpecMode {
     fn inject_args(&self, command: &mut Command) {
         command.arg("-As");
     }
-}
-
-/// File arguments of the [`DepotContent`] state's [`BranchMode`] and
-/// [`StreamMode`] sub-modes.
-///
-/// The prototype `[[fromfile[rev]] tofile[rev]]` allows either no file
-/// arguments ([`Diff2Parameters::None`]), the target side only
-/// ([`Diff2Parameters::To`]), or both sides ([`Diff2Parameters::Full`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Diff2Parameters<'a> {
-    /// Diff `fromfile[rev]` against `tofile[rev]`.
-    Full { from: &'a OsStr, to: &'a OsStr },
-    /// Diff the whole branch or stream, limited to the target side
-    /// `tofile[rev]`.
-    To(&'a OsStr),
-    /// Diff the whole branch or stream without limiting files.
-    None,
 }
 
 /// The depot content modes of `p4 diff2`: the default form comparing two
@@ -723,9 +706,12 @@ impl<M: ExclusiveOption> SubCommand for Diff2<M> {
     }
 }
 
-impl ParameterizedSpawn for Diff2<Unselected> {
-    type Input<'a> = (&'a OsStr, &'a OsStr);
-    type Output<'a> = Child;
+impl<A, B> ParameterizedSpawn<(A, B)> for Diff2<Unselected>
+where
+    A: AsRef<OsStr>,
+    B: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 diff2` for the given pair of file arguments as a child
@@ -734,10 +720,7 @@ impl ParameterizedSpawn for Diff2<Unselected> {
     ///
     /// Each file argument is a file name, optionally with a revision
     /// specifier (for example `file#2` or `file@34`).
-    fn spawn_with<'a>(
-        &mut self,
-        (file1, file2): Self::Input<'a>,
-    ) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (file1, file2): (A, B)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .arg(file1)
             .arg(file2)
@@ -747,9 +730,12 @@ impl ParameterizedSpawn for Diff2<Unselected> {
     }
 }
 
-impl ParameterizedSpawn for Diff2<DepotContent<Unselected>> {
-    type Input<'a> = (&'a OsStr, &'a OsStr);
-    type Output<'a> = Child;
+impl<A, B> ParameterizedSpawn<(A, B)> for Diff2<DepotContent<Unselected>>
+where
+    A: AsRef<OsStr>,
+    B: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 diff2` for the given pair of file arguments as a child
@@ -758,10 +744,7 @@ impl ParameterizedSpawn for Diff2<DepotContent<Unselected>> {
     ///
     /// Each file argument is a file name, optionally with a revision
     /// specifier (for example `file#2` or `file@34`).
-    fn spawn_with<'a>(
-        &mut self,
-        (file1, file2): Self::Input<'a>,
-    ) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (file1, file2): (A, B)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .arg(file1)
             .arg(file2)
@@ -771,151 +754,132 @@ impl ParameterizedSpawn for Diff2<DepotContent<Unselected>> {
     }
 }
 
-impl ParameterizedSpawn for Diff2<DepotContent<BranchMode>> {
-    type Input<'a> = Diff2Parameters<'a>;
-    type Output<'a> = Child;
+impl ParameterizedSpawn<()> for Diff2<DepotContent<BranchMode>> {
+    type Output = Child;
     type Error = std::io::Error;
 
-    /// Spawns `p4 diff2 -b branch` as a child process with piped standard
-    /// output and error streams; use the returned [`Child`] handle to wait
-    /// for it or interact with it.
-    ///
-    /// [`Diff2Parameters::Full`] limits the files compared to
-    /// `fromfile[rev]` and `tofile[rev]`, [`Diff2Parameters::To`] limits
-    /// the target side only, and [`Diff2Parameters::None`] diffs the whole
-    /// branch mapping.
-    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
-        let mut command = self.setup_command(&self.bin);
-
-        match files {
-            Diff2Parameters::Full { from, to } => {
-                command.arg(from);
-                command.arg(to);
-            }
-            Diff2Parameters::To(tofile) => {
-                command.arg(tofile);
-            }
-            Diff2Parameters::None => {}
-        }
-
-        command
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-    }
-}
-
-impl SpawnExt for Diff2<DepotContent<BranchMode>> {
     /// Spawns `p4 diff2 -b branch` without file arguments as a child
     /// process with piped standard output and error streams; the whole
     /// branch mapping is diffed. Use the returned [`Child`] handle to wait
     /// for it or interact with it.
-    fn spawn<'a>(&mut self) -> Result<Self::Output<'a>, Self::Error> {
-        self.spawn_with(Diff2Parameters::None)
-    }
-}
-
-impl<'f> SpawnExt1<&'f OsStr> for Diff2<DepotContent<BranchMode>> {
-    /// Spawns `p4 diff2 -b branch tofile[rev]` as a child process with
-    /// piped standard output and error streams; the branch mapping is
-    /// diffed with the target side limited to the given file. Use the
-    /// returned [`Child`] handle to wait for it or interact with it.
-    fn spawn<'a>(&mut self, tofile: &'f OsStr) -> Result<Self::Output<'a>, Self::Error> {
-        self.spawn_with(Diff2Parameters::To(tofile))
-    }
-}
-
-impl<'f> SpawnExt2<&'f OsStr, &'f OsStr> for Diff2<DepotContent<BranchMode>> {
-    /// Spawns `p4 diff2 -b branch fromfile[rev] tofile[rev]` as a child
-    /// process with piped standard output and error streams; the branch
-    /// mapping is diffed between the given files. Use the returned
-    /// [`Child`] handle to wait for it or interact with it.
-    fn spawn<'a>(
-        &mut self,
-        fromfile: &'f OsStr,
-        tofile: &'f OsStr,
-    ) -> Result<Self::Output<'a>, Self::Error> {
-        self.spawn_with(Diff2Parameters::Full {
-            from: fromfile,
-            to: tofile,
-        })
-    }
-}
-
-impl ParameterizedSpawn for Diff2<DepotContent<StreamMode>> {
-    type Input<'a> = Diff2Parameters<'a>;
-    type Output<'a> = Child;
-    type Error = std::io::Error;
-
-    /// Spawns `p4 diff2 -S stream` as a child process with piped standard
-    /// output and error streams; use the returned [`Child`] handle to wait
-    /// for it or interact with it.
-    ///
-    /// [`Diff2Parameters::Full`] limits the files compared to
-    /// `fromfile[rev]` and `tofile[rev]`, [`Diff2Parameters::To`] limits
-    /// the target side only, and [`Diff2Parameters::None`] diffs the whole
-    /// stream with its parent.
-    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
-        let mut command = self.setup_command(&self.bin);
-
-        match files {
-            Diff2Parameters::Full { from, to } => {
-                command.arg(from);
-                command.arg(to);
-            }
-            Diff2Parameters::To(tofile) => {
-                command.arg(tofile);
-            }
-            Diff2Parameters::None => {}
-        }
-
-        command
+    fn spawn_with(&mut self, _: ()) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
     }
 }
 
-impl SpawnExt for Diff2<DepotContent<StreamMode>> {
+impl<I> ParameterizedSpawn<(I,)> for Diff2<DepotContent<BranchMode>>
+where
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 diff2 -b branch [tofile[rev]]` as a child process with
+    /// piped standard output and error streams; use the returned [`Child`]
+    /// handle to wait for it or interact with it.
+    ///
+    /// Pass `Some(tofile)` to limit the target side of the branch mapping
+    /// to the given file, or `None` to diff the whole branch mapping.
+    fn spawn_with(&mut self, (tofile,): (I,)) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
+            .arg(tofile)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+    }
+}
+
+impl<A, B> ParameterizedSpawn<(A, B)> for Diff2<DepotContent<BranchMode>>
+where
+    A: AsRef<OsStr>,
+    B: AsRef<OsStr>,
+{
+    type Output = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 diff2 -b branch fromfile[rev] tofile[rev]` as a child
+    /// process with piped standard output and error streams; the branch
+    /// mapping is diffed between the given files. Use the returned
+    /// [`Child`] handle to wait for it or interact with it.
+    fn spawn_with(&mut self, (fromfile, tofile): (A, B)) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
+            .arg(fromfile)
+            .arg(tofile)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+    }
+}
+
+impl ParameterizedSpawn<()> for Diff2<DepotContent<StreamMode>> {
+    type Output = Child;
+    type Error = std::io::Error;
+
     /// Spawns `p4 diff2 -S stream` without file arguments as a child
     /// process with piped standard output and error streams; the whole
     /// stream is diffed with its parent. Use the returned [`Child`] handle
     /// to wait for it or interact with it.
-    fn spawn<'a>(&mut self) -> Result<Self::Output<'a>, Self::Error> {
-        self.spawn_with(Diff2Parameters::None)
+    fn spawn_with(&mut self, _: ()) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
     }
 }
 
-impl<'f> SpawnExt1<&'f OsStr> for Diff2<DepotContent<StreamMode>> {
-    /// Spawns `p4 diff2 -S stream tofile[rev]` as a child process with
-    /// piped standard output and error streams; the stream is diffed with
-    /// its parent with the target side limited to the given file. Use the
-    /// returned [`Child`] handle to wait for it or interact with it.
-    fn spawn<'a>(&mut self, tofile: &'f OsStr) -> Result<Self::Output<'a>, Self::Error> {
-        self.spawn_with(Diff2Parameters::To(tofile))
+impl<I> ParameterizedSpawn<(I,)> for Diff2<DepotContent<StreamMode>>
+where
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 diff2 -S stream [tofile[rev]]` as a child process with
+    /// piped standard output and error streams; use the returned [`Child`]
+    /// handle to wait for it or interact with it.
+    ///
+    /// Pass `Some(tofile)` to limit the target side of the stream diff to
+    /// the given file, or `None` to diff the whole stream with its parent.
+    fn spawn_with(&mut self, (tofile,): (I,)) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
+            .arg(tofile)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
     }
 }
 
-impl<'f> SpawnExt2<&'f OsStr, &'f OsStr> for Diff2<DepotContent<StreamMode>> {
+impl<A, B> ParameterizedSpawn<(A, B)> for Diff2<DepotContent<StreamMode>>
+where
+    A: AsRef<OsStr>,
+    B: AsRef<OsStr>,
+{
+    type Output = Child;
+    type Error = std::io::Error;
+
     /// Spawns `p4 diff2 -S stream fromfile[rev] tofile[rev]` as a child
     /// process with piped standard output and error streams; the stream is
     /// diffed with its parent between the given files. Use the returned
     /// [`Child`] handle to wait for it or interact with it.
-    fn spawn<'a>(
-        &mut self,
-        fromfile: &'f OsStr,
-        tofile: &'f OsStr,
-    ) -> Result<Self::Output<'a>, Self::Error> {
-        self.spawn_with(Diff2Parameters::Full {
-            from: fromfile,
-            to: tofile,
-        })
+    fn spawn_with(&mut self, (fromfile, tofile): (A, B)) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
+            .arg(fromfile)
+            .arg(tofile)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
     }
 }
 
-impl ParameterizedSpawn for Diff2<StreamSpecMode> {
-    type Input<'a> = (&'a str, &'a str);
-    type Output<'a> = Child;
+impl<A, B> ParameterizedSpawn<(A, B)> for Diff2<StreamSpecMode>
+where
+    A: AsRef<OsStr>,
+    B: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 diff2 -As` for the given pair of stream specs as a child
@@ -926,10 +890,7 @@ impl ParameterizedSpawn for Diff2<StreamSpecMode> {
     /// number: `@head` selects the head version, `@change` the version at a
     /// specific change, and `@=change` the shelved version at a specific
     /// change.
-    fn spawn_with<'a>(
-        &mut self,
-        (spec1, spec2): Self::Input<'a>,
-    ) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (spec1, spec2): (A, B)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .arg(spec1)
             .arg(spec2)
@@ -1040,7 +1001,7 @@ mod tests {
     fn branch_mode_with_tofile() {
         let diff2 = Diff2::new("p4", GlobalOpts::new()).branch("branch2");
 
-        // Mirrors `spawn_with` for `Diff2Parameters::To`, which appends the
+        // Mirrors `spawn_with` for the single-file input, which appends the
         // target file after the assembled command.
         let mut command = diff2.setup_command("p4");
         command.arg(OsStr::new("//depot/rel2/...#4"));
@@ -1078,7 +1039,7 @@ mod tests {
     fn stream_mode_with_tofile() {
         let diff2 = Diff2::new("p4", GlobalOpts::new()).stream("myStream");
 
-        // Mirrors `spawn_with` for `Diff2Parameters::To`, which appends the
+        // Mirrors `spawn_with` for the single-file input, which appends the
         // target file after the assembled command.
         let mut command = diff2.setup_command("p4");
         command.arg(OsStr::new("//depot/rel2/...#4"));

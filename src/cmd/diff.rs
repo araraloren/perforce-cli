@@ -7,7 +7,7 @@ use std::{
 use super::{DiffOptions, ExclusiveOption, SubCommand, Unselected};
 
 use crate::global::GlobalOpts;
-use crate::spawn::{ParameterizedSpawn, SpawnExt};
+use crate::spawn::ParameterizedSpawn;
 
 /// Display options passed via the `-soptions` flag, producing a shorthand
 /// list of files that match the filter instead of diffs.
@@ -560,15 +560,18 @@ impl<M: ExclusiveOption> SubCommand for Diff<M> {
     }
 }
 
-impl ParameterizedSpawn for Diff<Unselected> {
-    type Input<'a> = &'a [&'a OsStr];
-    type Output<'a> = Child;
+impl<S, I> ParameterizedSpawn<(S,)> for Diff<Unselected>
+where
+    S: IntoIterator<Item = I>,
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 diff` for the given file arguments as a child process with
     /// piped standard output and error streams; use the returned [`Child`]
     /// handle to wait for it or interact with it.
-    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (files,): (S,)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())
@@ -577,15 +580,18 @@ impl ParameterizedSpawn for Diff<Unselected> {
     }
 }
 
-impl<M: ExclusiveOption> ParameterizedSpawn for Diff<WorkspaceMode<M>> {
-    type Input<'a> = &'a [&'a OsStr];
-    type Output<'a> = Child;
+impl<M: ExclusiveOption, S, I> ParameterizedSpawn<(S,)> for Diff<WorkspaceMode<M>>
+where
+    S: IntoIterator<Item = I>,
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 diff` for the given file arguments as a child process with
     /// piped standard output and error streams; use the returned [`Child`]
     /// handle to wait for it or interact with it.
-    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (files,): (S,)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())
@@ -594,43 +600,46 @@ impl<M: ExclusiveOption> ParameterizedSpawn for Diff<WorkspaceMode<M>> {
     }
 }
 
-impl ParameterizedSpawn for Diff<StreamSpecMode> {
-    type Input<'a> = Option<&'a str>;
-    type Output<'a> = Child;
+impl<I> ParameterizedSpawn<(I,)> for Diff<StreamSpecMode>
+where
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 diff -As` as a child process with piped standard output
     /// and error streams; use the returned [`Child`] handle to wait for it
     /// or interact with it.
     ///
-    /// Pass `Some(stream_spec)` to diff against the given stream spec — a
-    /// streamname, optionally at a specific changelist number (`@head`
-    /// selects the head version, `@change` the version at a specific
-    /// change, and `@=change` the shelved version at a specific change) —
-    /// or `None` to diff the opened stream spec against its have version.
-    fn spawn_with<'a>(
-        &mut self,
-        stream_spec: Self::Input<'a>,
-    ) -> Result<Self::Output<'a>, Self::Error> {
-        let mut command = self.setup_command(&self.bin);
-
-        if let Some(stream_spec) = stream_spec {
-            command.arg(stream_spec);
-        }
-        command
+    /// The stream spec is a streamname, optionally at a specific changelist
+    /// number: `@head` selects the head version, `@change` the version at a
+    /// specific change, and `@=change` the shelved version at a specific
+    /// change.
+    ///
+    /// Use [`spawn()`](SpawnExt::spawn) (no arguments) to diff the opened
+    /// stream spec against its have version.
+    fn spawn_with(&mut self, (stream_spec,): (I,)) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
+            .arg(stream_spec)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
     }
 }
 
-impl SpawnExt for Diff<StreamSpecMode> {
+impl ParameterizedSpawn<()> for Diff<StreamSpecMode> {
+    type Output = Child;
+    type Error = std::io::Error;
+
     /// Spawns `p4 diff -As` without a stream spec as a child process with
     /// piped standard output and error streams; the opened stream spec is
     /// diffed against its have version. Use the returned [`Child`] handle
     /// to wait for it or interact with it.
-    fn spawn<'a>(&mut self) -> Result<Self::Output<'a>, Self::Error> {
-        self.spawn_with(None)
+    fn spawn_with(&mut self, _: ()) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
     }
 }
 

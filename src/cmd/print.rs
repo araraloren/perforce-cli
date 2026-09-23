@@ -704,15 +704,18 @@ impl Print<Unselected> {
     }
 }
 
-impl<M: ExclusiveOption> ParameterizedSpawn for Print<M> {
-    type Input<'a> = &'a [&'a OsStr];
-    type Output<'a> = Child;
+impl<M: ExclusiveOption, S, I> ParameterizedSpawn<(S,)> for Print<M>
+where
+    S: IntoIterator<Item = I>,
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 print` for the given files as a child process with piped
     /// standard output and error streams; use the returned [`Child`] handle
     /// to wait for it or interact with it.
-    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (files,): (S,)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())

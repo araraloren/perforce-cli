@@ -26,13 +26,13 @@ fn main() -> std::io::Result<()> {
 
     // Run the command to completion and capture its output.
     let file = Path::new("//depot/project/README.md");
-    let output = print.output_with(&[file.as_os_str()])?;
+    let output = print.output_with((&[file.as_os_str()],))?;
     println!("{}", String::from_utf8_lossy(&output.stdout));
 
     // Or stream the contents directly to the terminal with `spawn_with`.
     let mut child = p4
         .print()
-        .spawn_with(&[OsStr::new("//depot/project/README.md")])?;
+        .spawn_with((&[OsStr::new("//depot/project/README.md")],))?;
     child.wait()?;
 
     Ok(())

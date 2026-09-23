@@ -198,18 +198,19 @@ impl Archive<SafeArchive> {
     }
 }
 
-impl<M> ParameterizedSpawn for Archive<M>
+impl<M, S, I> ParameterizedSpawn<(S,)> for Archive<M>
 where
     Archive<M>: SubCommand,
+    S: IntoIterator<Item = I>,
+    I: AsRef<OsStr>,
 {
-    type Input<'a> = &'a [&'a OsStr];
-    type Output<'a> = Child;
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 archive` for the given file specs as a child process with
     /// piped standard output and error streams; use the returned [`Child`]
     /// handle to wait for it or interact with it.
-    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (files,): (S,)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())

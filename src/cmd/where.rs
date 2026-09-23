@@ -71,9 +71,12 @@ impl SubCommand for Where {
     }
 }
 
-impl ParameterizedSpawn for Where {
-    type Input<'a> = &'a [&'a OsStr];
-    type Output<'a> = Child;
+impl<S, I> ParameterizedSpawn<(S,)> for Where
+where
+    S: IntoIterator<Item = I>,
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 where` for the given files as a child process with piped
@@ -81,7 +84,7 @@ impl ParameterizedSpawn for Where {
     /// to wait for it or interact with it.
     ///
     /// For each file provided as a parameter, a set of mappings is output.
-    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (files,): (S,)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())

@@ -178,9 +178,12 @@ impl<L: ExclusiveOption> FileLog<L, Unselected> {
     }
 }
 
-impl<L: ExclusiveOption, H: ExclusiveOption> ParameterizedSpawn for FileLog<L, H> {
-    type Input<'a> = &'a [&'a OsStr];
-    type Output<'a> = Child;
+impl<L: ExclusiveOption, H: ExclusiveOption, S, I> ParameterizedSpawn<(S,)> for FileLog<L, H>
+where
+    S: IntoIterator<Item = I>,
+    I: AsRef<OsStr>,
+{
+    type Output = Child;
     type Error = std::io::Error;
 
     /// Spawns `p4 filelog` for the given files as a child process with piped
@@ -188,7 +191,7 @@ impl<L: ExclusiveOption, H: ExclusiveOption> ParameterizedSpawn for FileLog<L, H
     /// to wait for it or interact with it.
     ///
     /// At least one file or file pattern must be provided.
-    fn spawn_with<'a>(&mut self, files: Self::Input<'a>) -> Result<Self::Output<'a>, Self::Error> {
+    fn spawn_with(&mut self, (files,): (S,)) -> Result<Self::Output, Self::Error> {
         self.setup_command(&self.bin)
             .args(files)
             .stdout(Stdio::piped())
