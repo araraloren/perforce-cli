@@ -8,19 +8,6 @@ pub trait ParameterizedSpawn<T> {
     fn spawn_with(&mut self, input: T) -> Result<Self::Output, Self::Error>;
 }
 
-pub trait SpawnExt: ParameterizedSpawn<()> {
-    fn spawn(&mut self) -> Result<Self::Output, Self::Error>;
-}
-
-impl<T> SpawnExt for T
-where
-    T: ParameterizedSpawn<()>,
-{
-    fn spawn(&mut self) -> Result<Self::Output, Self::Error> {
-        self.spawn_with(())
-    }
-}
-
 pub trait ParameterizedOutput<T> {
     type Error;
 
@@ -36,6 +23,19 @@ where
     fn output_with(&mut self, input: I) -> Result<Output, Self::Error> {
         self.spawn_with(input)
             .and_then(|child| child.wait_with_output())
+    }
+}
+
+pub trait SpawnExt: ParameterizedSpawn<()> {
+    fn spawn(&mut self) -> Result<Self::Output, Self::Error>;
+}
+
+impl<T> SpawnExt for T
+where
+    T: ParameterizedSpawn<()>,
+{
+    fn spawn(&mut self) -> Result<Self::Output, Self::Error> {
+        self.spawn_with(())
     }
 }
 
@@ -66,7 +66,7 @@ macro_rules! spawnext_def {
     ) => {
         #[allow(clippy::too_many_arguments)]
         #[allow(unused_parens)]
-        pub trait $spawn_trait<$($T),+>: ParameterizedSpawn<($($T),+)> {
+        pub trait $spawn_trait<$($T),+>: ParameterizedSpawn<($($T,)+)> {
             fn spawn(
                 &mut self,
                 $($param: $T),+
@@ -77,19 +77,19 @@ macro_rules! spawnext_def {
         #[allow(unused_parens)]
         impl<T, $($T),+> $spawn_trait<$($T),+> for T
         where
-            T: ParameterizedSpawn<($($T),+)>,
+            T: ParameterizedSpawn<($($T,)+)>,
         {
             fn spawn(
                 &mut self,
                 $($param: $T),+
             ) -> Result<Self::Output, Self::Error> {
-                self.spawn_with(($($param),+))
+                self.spawn_with(($($param,)+))
             }
         }
 
         #[allow(clippy::too_many_arguments)]
         #[allow(unused_parens)]
-        pub trait $output_trait<$($T),+>: ParameterizedOutput<($($T),+)> {
+        pub trait $output_trait<$($T),+>: $spawn_trait<$($T),+> {
             fn output(
                 &mut self,
                 $($param: $T),+
@@ -100,13 +100,13 @@ macro_rules! spawnext_def {
         #[allow(unused_parens)]
         impl<T, $($T),+> $output_trait<$($T),+> for T
         where
-            T: ParameterizedOutput<($($T),+)>,
+            T: $spawn_trait<$($T),+, Output = std::process::Child, Error = std::io::Error>,
         {
             fn output(
                 &mut self,
                 $($param: $T),+
             ) -> Result<Output, Self::Error> {
-                self.output_with(($($param),+))
+                self.spawn($($param),+).and_then(|child| child.wait_with_output())
             }
         }
     };

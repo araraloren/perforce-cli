@@ -29,6 +29,7 @@ use std::ffi::OsStr;
 use perforce_cli::P4Cli;
 use perforce_cli::cmd::DiffOptionsBuilder;
 use perforce_cli::cmd::diff::DisplayOptions;
+use perforce_cli::spawn::OutputExt1;
 use perforce_cli::spawn::ParameterizedOutput;
 #[cfg(not(feature = "lt2019_1"))]
 use perforce_cli::spawn::ParameterizedSpawn;
@@ -59,7 +60,7 @@ fn main() -> std::io::Result<()> {
         .force(true)
         .display_options(DisplayOptions::UnopenedChanged);
 
-    let output = list_changed.output_with((&files,))?;
+    let output = list_changed.output(files)?;
     println!("{}", String::from_utf8_lossy(&output.stdout));
 
     // Stream-spec mode: diff a privately edited stream spec against the head
