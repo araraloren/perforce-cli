@@ -124,6 +124,14 @@ impl P4Cli {
         Change::new(self.bin.clone(), self.global_opts.clone())
     }
 
+    /// Create or edit a changelist specification.
+    ///
+    /// This is an alias for [`Self::change`], corresponding to the `p4
+    /// changelist` command.
+    pub fn changelist(&self) -> Change {
+        Change::new(self.bin.clone(), self.global_opts.clone())
+    }
+
     /// List submitted and pending changelists.
     pub fn changes(&self) -> Changes {
         Changes::new(self.bin.clone(), self.global_opts.clone())

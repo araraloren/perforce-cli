@@ -249,6 +249,8 @@ impl TakesChangeList for StdoutMode {}
 ///
 /// Create or edit a changelist specification.
 ///
+/// The command `p4 changelist` is an alias for `p4 change`.
+///
 /// # Syntax
 ///
 /// ```text
