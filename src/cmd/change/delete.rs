@@ -11,11 +11,15 @@ use super::{
 
 /// Local variant of the delete form: `p4 change -d [-f -s -O] changelist`.
 ///
-/// The remote variant (`-d -f --serverid=X`) is [`RemoteDeleteMode`].
+#[cfg_attr(
+    not(feature = "lt2015_2"),
+    doc = "The remote variant is [`RemoteDeleteMode`]."
+)]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct LocalDeleteMode;
 
 /// Remote variant of the delete form: `p4 change -d -f --serverid=X changelist`.
+#[cfg(not(feature = "lt2015_2"))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemoteDeleteMode {
     pub(super) server_id: String,
@@ -24,7 +28,8 @@ pub struct RemoteDeleteMode {
 /// The delete form: `p4 change -d [-f -s -O] changelist`.
 ///
 /// The `L` parameter distinguishes the [`LocalDeleteMode`] form from the
-/// [`RemoteDeleteMode`] form.
+#[cfg_attr(not(feature = "lt2015_2"), doc = "[`RemoteDeleteMode`] form.")]
+#[cfg_attr(feature = "lt2015_2", doc = "remote form.")]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DeleteMode<L = LocalDeleteMode> {
     pub(super) loc: L,
@@ -32,9 +37,13 @@ pub struct DeleteMode<L = LocalDeleteMode> {
 
 impl ExclusiveOption for LocalDeleteMode {}
 
+#[cfg(not(feature = "lt2015_2"))]
 impl ExclusiveOption for RemoteDeleteMode {
     fn inject_args(&self, command: &mut Command) {
         command.arg("-f");
+        #[cfg(feature = "lt2022_1")]
+        command.arg(format!("--server={}", self.server_id));
+        #[cfg(not(feature = "lt2022_1"))]
         command.arg(format!("--serverid={}", self.server_id));
     }
 }
@@ -79,10 +88,13 @@ impl TransferDeleteMode for OriginalChangeListMode {}
 /// Only `Unselected` and `ForceOperationMode` are allowed: the remote
 /// delete form accepts neither `-u` nor any explicit `-f` (its `-f` is
 /// built in).
+#[cfg(not(feature = "lt2015_2"))]
 #[doc(hidden)]
 pub trait TransferRemoteDeleteMode {}
 
+#[cfg(not(feature = "lt2015_2"))]
 impl TransferRemoteDeleteMode for Unselected {}
+#[cfg(not(feature = "lt2015_2"))]
 impl TransferRemoteDeleteMode for ForceOperationMode {}
 
 // ---------------------------------------------------------------------------
@@ -136,8 +148,9 @@ impl<O, S> Change<DeleteMode<LocalDeleteMode>, O, Unselected, S> {
 }
 
 // Local delete -> remote delete: no `-s`/`-O`; `-u` is never allowed.
+#[cfg(not(feature = "lt2015_2"))]
 impl<O: TransferRemoteDeleteMode> Change<DeleteMode<LocalDeleteMode>, O, Unselected, Unselected> {
-    /// Transitions to the remote delete form (`-d -f --serverid=X`).
+    /// Transitions to the remote delete form.
     ///
     /// Available from the local delete form as long as neither `-s`,
     /// `-O`, nor `-u` is selected (the remote delete form accepts no

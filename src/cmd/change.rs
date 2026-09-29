@@ -13,9 +13,9 @@ pub mod delete;
 pub mod inout;
 pub mod userorvis;
 
-pub use delete::{
-    DeleteMode, LocalDeleteMode, RemoteDeleteMode, TransferDeleteMode, TransferRemoteDeleteMode,
-};
+pub use delete::{DeleteMode, LocalDeleteMode, TransferDeleteMode};
+#[cfg(not(feature = "lt2015_2"))]
+pub use delete::{RemoteDeleteMode, TransferRemoteDeleteMode};
 pub use userorvis::{TransferUVMode, UserOrVisibilityMode};
 
 // The seven syntax forms of `p4 change`:
@@ -126,6 +126,7 @@ pub struct OriginalChangeListMode;
 
 /// `-I` selected in a form where it may be combined with other options
 /// (`-f`, `-s`): the edit and `-o` forms.
+#[cfg(not(feature = "lt2022_1"))]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct IdentityChangeListMode;
 
@@ -136,6 +137,7 @@ pub struct OnlyOriginalChangeListMode;
 
 /// `-I` selected as the single reference of the `-t` / `-U` forms, where
 /// it is mutually exclusive with `-f`, `-u`, and `-O`.
+#[cfg(not(feature = "lt2015_2"))]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct OnlyIdentityChangeListMode;
 
@@ -185,6 +187,7 @@ impl ExclusiveOption for OriginalChangeListMode {
     }
 }
 
+#[cfg(not(feature = "lt2022_1"))]
 impl ExclusiveOption for IdentityChangeListMode {
     fn inject_args(&self, command: &mut Command) {
         command.arg("-I");
@@ -197,6 +200,7 @@ impl ExclusiveOption for OnlyOriginalChangeListMode {
     }
 }
 
+#[cfg(not(feature = "lt2015_2"))]
 impl ExclusiveOption for OnlyIdentityChangeListMode {
     fn inject_args(&self, command: &mut Command) {
         command.arg("-I");
@@ -265,14 +269,20 @@ impl TakesChangeList for StdoutMode {}
 ///   [`UpdateOperationMode`], or the `Only*` variants used inside the
 ///   `-t` / `-U` form;
 /// - `C`: the `-O` / `-I` changelist reference —
-///   [`OriginalChangeListMode`] / [`IdentityChangeListMode`], or their
+///   [`OriginalChangeListMode`]
+#[cfg_attr(
+    not(feature = "lt2022_1"),
+    doc = "   / [`IdentityChangeListMode`], or their"
+)]
+#[cfg_attr(feature = "lt2022_1", doc = "   , or its")]
 ///   `Only*` variants;
 /// - `S`: the `-s` arbitrary job status flag ([`ArbitraryJobStatus`]).
 ///
 /// Start from [`Change::new`] (or [`crate::P4Cli::change`]), enter a form
 /// with one of [`Self::delete`], [`Self::stdout`], [`Self::stdin`],
 /// [`Self::visibility`], or [`Self::user`] (or one of the
-/// [`Self::force`]/[`Self::update`]/[`Self::original`]/[`Self::identity`]/
+/// [`Self::force`]/[`Self::update`]/[`Self::original`]/
+#[cfg_attr(not(feature = "lt2022_1"), doc = "[`Self::identity`]/")]
 /// [`Self::arbitrary_job_status`] entry points that select an option of the
 /// plain edit form), and move between compatible forms with the
 /// `delete`, `stdout`, `stdin`, `visibility`, `user`, and `server_id`
@@ -318,13 +328,14 @@ impl Change<Unselected, Unselected, Unselected, Unselected> {
         })
     }
 
-    /// Enters the remote delete form: `p4 change -d -f --serverid=X changelist`.
+    /// Enters the remote delete form.
     ///
     /// `-f` is fixed in this form and is injected together with the form;
     /// none of the other options are accepted.
     ///
     /// `server_id` is the server id of the commit server the changelist's
     /// client is bound to.
+    #[cfg(not(feature = "lt2015_2"))]
     pub fn server_id(
         self,
         server_id: impl Into<String>,
@@ -431,6 +442,7 @@ impl Change<Unselected, Unselected, Unselected, Unselected> {
     }
 
     /// Selects `-I` and enters the plain edit form.
+    #[cfg(not(feature = "lt2022_1"))]
     pub fn identity(
         self,
     ) -> Change<RegularOperationMode, Unselected, IdentityChangeListMode, Unselected> {
@@ -542,8 +554,9 @@ impl<P, C, S> Change<RegularOperationMode, P, C, S> {
 
 // Regular -> remote delete: no `-u`, `-s`, `-O`, or `-I`; `-f` is optional
 // (it is folded into the form's built-in `-f`).
+#[cfg(not(feature = "lt2015_2"))]
 impl<P: TransferRemoteDeleteMode> Change<RegularOperationMode, P, Unselected, Unselected> {
-    /// Transitions to the remote delete form (`-d -f --serverid=X`).
+    /// Transitions to the remote delete form.
     ///
     /// Available from the plain edit form as long as neither `-u`, `-s`,
     /// `-O`, nor `-I` is selected. A previously selected `-f` is folded
@@ -657,6 +670,7 @@ impl<O, S> Change<RegularOperationMode, O, Unselected, S> {
     /// Selects `-I`: interpret the changelist number as the Identity field.
     ///
     /// Mutually exclusive with `-O`.
+    #[cfg(not(feature = "lt2022_1"))]
     pub fn identity(self) -> Change<RegularOperationMode, O, IdentityChangeListMode, S> {
         Change {
             bin: self.bin,
@@ -928,6 +942,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "lt2022_1"))]
     fn regular_form_update_and_identity() {
         let change = Change::new("p4", GlobalOpts::new())
             .arbitrary_job_status()
@@ -951,11 +966,20 @@ mod tests {
         let stdin = Change::new("p4", GlobalOpts::new()).stdin();
         assert_eq!(args_of(&stdin.setup_command("p4")), ["change", "-i"]);
 
-        let remote = Change::new("p4", GlobalOpts::new()).server_id("remote-1");
-        assert_eq!(
-            args_of(&remote.setup_command("p4")),
-            ["change", "-d", "-f", "--serverid=remote-1"]
-        );
+        #[cfg(not(feature = "lt2015_2"))]
+        {
+            let remote = Change::new("p4", GlobalOpts::new()).server_id("remote-1");
+            #[cfg(feature = "lt2022_1")]
+            assert_eq!(
+                args_of(&remote.setup_command("p4")),
+                ["change", "-d", "-f", "--server=remote-1"]
+            );
+            #[cfg(not(feature = "lt2022_1"))]
+            assert_eq!(
+                args_of(&remote.setup_command("p4")),
+                ["change", "-d", "-f", "--serverid=remote-1"]
+            );
+        }
     }
 
     #[test]
@@ -992,6 +1016,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "lt2022_1"))]
     fn regular_to_stdout_preserves_identity() {
         let change = Change::new("p4", GlobalOpts::new())
             .arbitrary_job_status()
@@ -1019,6 +1044,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(feature = "lt2015_2"))]
     fn regular_to_remote_delete_folds_force_into_builtin() {
         // `-f` selected in the edit form is folded into the remote delete
         // form's built-in `-f`.
@@ -1026,6 +1052,12 @@ mod tests {
             .force()
             .server_id("remote-1");
 
+        #[cfg(feature = "lt2022_1")]
+        assert_eq!(
+            args_of(&change.setup_command("p4")),
+            ["change", "-d", "-f", "--server=remote-1"]
+        );
+        #[cfg(not(feature = "lt2022_1"))]
         assert_eq!(
             args_of(&change.setup_command("p4")),
             ["change", "-d", "-f", "--serverid=remote-1"]
@@ -1044,13 +1076,16 @@ mod tests {
         );
 
         // -I maps to the only-identity reference
-        let identity = Change::new("p4", GlobalOpts::new())
-            .identity()
-            .visibility(Visibility::Public);
-        assert_eq!(
-            args_of(&identity.setup_command("p4")),
-            ["change", "-t", "public", "-I"]
-        );
+        #[cfg(not(feature = "lt2022_1"))]
+        {
+            let identity = Change::new("p4", GlobalOpts::new())
+                .identity()
+                .visibility(Visibility::Public);
+            assert_eq!(
+                args_of(&identity.setup_command("p4")),
+                ["change", "-t", "public", "-I"]
+            );
+        }
 
         // no extra option
         let plain = Change::new("p4", GlobalOpts::new())
@@ -1120,13 +1155,16 @@ mod tests {
             ["change", "-U", "maria", "-O"]
         );
 
-        let identity = Change::new("p4", GlobalOpts::new())
-            .visibility(Visibility::Public)
-            .identity();
-        assert_eq!(
-            args_of(&identity.setup_command("p4")),
-            ["change", "-t", "public", "-I"]
-        );
+        #[cfg(not(feature = "lt2015_2"))]
+        {
+            let identity = Change::new("p4", GlobalOpts::new())
+                .visibility(Visibility::Public)
+                .identity();
+            assert_eq!(
+                args_of(&identity.setup_command("p4")),
+                ["change", "-t", "public", "-I"]
+            );
+        }
     }
 
     #[test]
@@ -1141,14 +1179,28 @@ mod tests {
             ["change", "-d", "-s", "-f", "-O"]
         );
 
-        let stdout = Change::new("p4", GlobalOpts::new())
-            .stdout()
-            .arbitrary_job_status()
-            .identity();
-        assert_eq!(
-            args_of(&stdout.setup_command("p4")),
-            ["change", "-o", "-s", "-I"]
-        );
+        #[cfg(not(feature = "lt2022_1"))]
+        {
+            let stdout = Change::new("p4", GlobalOpts::new())
+                .stdout()
+                .arbitrary_job_status()
+                .identity();
+            assert_eq!(
+                args_of(&stdout.setup_command("p4")),
+                ["change", "-o", "-s", "-I"]
+            );
+        }
+        #[cfg(feature = "lt2022_1")]
+        {
+            let stdout = Change::new("p4", GlobalOpts::new())
+                .stdout()
+                .arbitrary_job_status()
+                .original();
+            assert_eq!(
+                args_of(&stdout.setup_command("p4")),
+                ["change", "-o", "-s", "-O"]
+            );
+        }
 
         let stdin = Change::new("p4", GlobalOpts::new())
             .stdin()
@@ -1199,30 +1251,60 @@ mod tests {
         );
 
         // DeleteMode (remote): exactly 1 changelist.
-        let remote = Change::new("p4", GlobalOpts::new()).server_id("edge-1");
-        let mut remote_cl = remote.setup_command("p4");
-        remote_cl.arg("1234");
-        assert_eq!(
-            args_of(&remote_cl),
-            ["change", "-d", "-f", "--serverid=edge-1", "1234"]
-        );
+        #[cfg(not(feature = "lt2015_2"))]
+        {
+            let remote = Change::new("p4", GlobalOpts::new()).server_id("edge-1");
+            let mut remote_cl = remote.setup_command("p4");
+            remote_cl.arg("1234");
+            #[cfg(feature = "lt2022_1")]
+            assert_eq!(
+                args_of(&remote_cl),
+                ["change", "-d", "-f", "--server=edge-1", "1234"]
+            );
+            #[cfg(not(feature = "lt2022_1"))]
+            assert_eq!(
+                args_of(&remote_cl),
+                ["change", "-d", "-f", "--serverid=edge-1", "1234"]
+            );
+        }
 
         // Stdout: 0 or 1 changelist.
-        let stdout = Change::new("p4", GlobalOpts::new())
-            .stdout()
-            .arbitrary_job_status()
-            .force()
-            .identity();
-        assert_eq!(
-            args_of(&stdout.setup_command("p4")),
-            ["change", "-o", "-s", "-f", "-I"]
-        );
-        let mut stdout_cl = stdout.setup_command("p4");
-        stdout_cl.arg("1234");
-        assert_eq!(
-            args_of(&stdout_cl),
-            ["change", "-o", "-s", "-f", "-I", "1234"]
-        );
+        #[cfg(not(feature = "lt2022_1"))]
+        {
+            let stdout = Change::new("p4", GlobalOpts::new())
+                .stdout()
+                .arbitrary_job_status()
+                .force()
+                .identity();
+            assert_eq!(
+                args_of(&stdout.setup_command("p4")),
+                ["change", "-o", "-s", "-f", "-I"]
+            );
+            let mut stdout_cl = stdout.setup_command("p4");
+            stdout_cl.arg("1234");
+            assert_eq!(
+                args_of(&stdout_cl),
+                ["change", "-o", "-s", "-f", "-I", "1234"]
+            );
+        }
+        #[cfg(feature = "lt2022_1")]
+        {
+            let stdout = Change::new("p4", GlobalOpts::new())
+                .stdout()
+                .arbitrary_job_status()
+                .force()
+                .original();
+            assert_eq!(
+                args_of(&stdout.setup_command("p4")),
+                ["change", "-o", "-s", "-f", "-O"]
+            );
+            let mut stdout_cl = stdout.setup_command("p4");
+            stdout_cl.arg("1234");
+            assert_eq!(
+                args_of(&stdout_cl),
+                ["change", "-o", "-s", "-f", "-O", "1234"]
+            );
+        }
 
         // Stdin: no changelist; stdin is configured separately.
         let stdin = Change::new("p4", GlobalOpts::new())

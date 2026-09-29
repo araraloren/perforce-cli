@@ -1,9 +1,13 @@
 use std::process::Command;
 
+#[cfg(not(feature = "lt2022_1"))]
+use super::IdentityChangeListMode;
+#[cfg(not(feature = "lt2015_2"))]
+use super::OnlyIdentityChangeListMode;
 use super::{
-    Change, ExclusiveOption, ForceOperationMode, IdentityChangeListMode, OnlyForceOperationMode,
-    OnlyIdentityChangeListMode, OnlyOriginalChangeListMode, OnlyUpdateOperationMode,
-    OriginalChangeListMode, TakesChangeList, Unselected, UpdateOperationMode, Visibility,
+    Change, ExclusiveOption, ForceOperationMode, OnlyForceOperationMode,
+    OnlyOriginalChangeListMode, OnlyUpdateOperationMode, OriginalChangeListMode, TakesChangeList,
+    Unselected, UpdateOperationMode, Visibility,
 };
 
 // ---------------------------------------------------------------------------
@@ -94,6 +98,7 @@ impl TransferUVMode for (Unselected, OriginalChangeListMode) {
     }
 }
 
+#[cfg(not(feature = "lt2022_1"))]
 impl TransferUVMode for (Unselected, IdentityChangeListMode) {
     type P = Unselected;
     type C = OnlyIdentityChangeListMode;
@@ -159,7 +164,11 @@ impl<O, C> Change<UserOrVisibilityMode, O, C, Unselected> {
 impl Change<UserOrVisibilityMode, Unselected, Unselected, Unselected> {
     /// Selects `-f` (force the type/owner change).
     ///
-    /// Mutually exclusive with `-u`, `-O`, and `-I`.
+    #[cfg_attr(
+        not(feature = "lt2015_2"),
+        doc = "Mutually exclusive with `-u`, `-O`, and `-I`."
+    )]
+    #[cfg_attr(feature = "lt2015_2", doc = "Mutually exclusive with `-u` and `-O`.")]
     pub fn force(
         self,
     ) -> Change<UserOrVisibilityMode, OnlyForceOperationMode, Unselected, Unselected> {
@@ -175,7 +184,11 @@ impl Change<UserOrVisibilityMode, Unselected, Unselected, Unselected> {
 
     /// Selects `-u` (update a submitted changelist).
     ///
-    /// Mutually exclusive with `-f`, `-O`, and `-I`.
+    #[cfg_attr(
+        not(feature = "lt2015_2"),
+        doc = "Mutually exclusive with `-f`, `-O`, and `-I`."
+    )]
+    #[cfg_attr(feature = "lt2015_2", doc = "Mutually exclusive with `-f` and `-O`.")]
     pub fn update(
         self,
     ) -> Change<UserOrVisibilityMode, OnlyUpdateOperationMode, Unselected, Unselected> {
@@ -192,7 +205,11 @@ impl Change<UserOrVisibilityMode, Unselected, Unselected, Unselected> {
     /// Selects `-O`: interpret the changelist number as the original,
     /// pre-renumber number.
     ///
-    /// Mutually exclusive with `-f`, `-u`, and `-I`.
+    #[cfg_attr(
+        not(feature = "lt2015_2"),
+        doc = "Mutually exclusive with `-f`, `-u`, and `-I`."
+    )]
+    #[cfg_attr(feature = "lt2015_2", doc = "Mutually exclusive with `-f` and `-u`.")]
     pub fn original(
         self,
     ) -> Change<UserOrVisibilityMode, Unselected, OnlyOriginalChangeListMode, Unselected> {
@@ -209,6 +226,7 @@ impl Change<UserOrVisibilityMode, Unselected, Unselected, Unselected> {
     /// Selects `-I`: interpret the changelist number as the Identity field.
     ///
     /// Mutually exclusive with `-f`, `-u`, and `-O`.
+    #[cfg(not(feature = "lt2015_2"))]
     pub fn identity(
         self,
     ) -> Change<UserOrVisibilityMode, Unselected, OnlyIdentityChangeListMode, Unselected> {

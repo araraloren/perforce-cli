@@ -1,6 +1,8 @@
+#[cfg(not(feature = "lt2022_1"))]
+use super::IdentityChangeListMode;
 use super::{
-    ArbitraryJobStatus, Change, ForceOperationMode, IdentityChangeListMode,
-    OriginalChangeListMode, StdinMode, StdoutMode, Unselected, UpdateOperationMode,
+    ArbitraryJobStatus, Change, ForceOperationMode, OriginalChangeListMode, StdinMode, StdoutMode,
+    Unselected, UpdateOperationMode,
 };
 
 // ---------------------------------------------------------------------------
@@ -50,6 +52,7 @@ impl<O, S> Change<StdoutMode, O, Unselected, S> {
     }
 
     /// Selects `-I` in the stdout form (reference by Identity field).
+    #[cfg(not(feature = "lt2022_1"))]
     pub fn identity(self) -> Change<StdoutMode, O, IdentityChangeListMode, S> {
         Change {
             bin: self.bin,

@@ -1,15 +1,14 @@
 [package]
-name = "perforce-cli"
-version = "0.1.0-alpha.4"
-edition = "2024"
 authors = [
   "araraloren <blackcatoverwall@gmail.com>",
 ]
-license = "MPL-2.0"
+categories = [
+  "command-line-interface",
+  "development-tools",
+]
 description = "A type-safe builder library for spawning Perforce (p4) commands, with compile-time option state isolation and multi-version support."
-readme = "README.md"
-repository = "https://github.com/araraloren/perforce-cli"
 documentation = "https://docs.rs/perforce-cli"
+edition = "2024"
 keywords = [
   "perforce",
   "p4",
@@ -17,10 +16,11 @@ keywords = [
   "version-control",
   "builder",
 ]
-categories = [
-  "command-line-interface",
-  "development-tools",
-]
+license = "MPL-2.0"
+name = "perforce-cli"
+readme = "README.md"
+repository = "https://github.com/araraloren/perforce-cli"
+version = "0.1.0-alpha.5"
 
 [dependencies]
 
@@ -256,7 +256,21 @@ v2019_1 = [
   "lt2025_2",
   "lt2026_1",
 ]
-v2019_2 = ["lt2020_1", "lt2020_2", "lt2021_1", "lt2021_2", "lt2022_1", "lt2022_2", "lt2023_1", "lt2023_2", "lt2024_1", "lt2024_2", "lt2025_1", "lt2025_2", "lt2026_1"]
+v2019_2 = [
+  "lt2020_1",
+  "lt2020_2",
+  "lt2021_1",
+  "lt2021_2",
+  "lt2022_1",
+  "lt2022_2",
+  "lt2023_1",
+  "lt2023_2",
+  "lt2024_1",
+  "lt2024_2",
+  "lt2025_1",
+  "lt2025_2",
+  "lt2026_1",
+]
 v2020_1 = ["lt2020_2", "lt2021_1", "lt2021_2", "lt2022_1", "lt2022_2", "lt2023_1", "lt2023_2", "lt2024_1", "lt2024_2", "lt2025_1", "lt2025_2", "lt2026_1"]
 v2020_2 = ["lt2021_1", "lt2021_2", "lt2022_1", "lt2022_2", "lt2023_1", "lt2023_2", "lt2024_1", "lt2024_2", "lt2025_1", "lt2025_2", "lt2026_1"]
 v2021_1 = ["lt2021_2", "lt2022_1", "lt2022_2", "lt2023_1", "lt2023_2", "lt2024_1", "lt2024_2", "lt2025_1", "lt2025_2", "lt2026_1"]
@@ -297,9 +311,9 @@ lt2025_2 = []
 lt2026_1 = []
 
 [[example]]
-name = "print"
 doc-scrape-examples = true
+name = "print"
 
 [[example]]
-name = "diff"
 doc-scrape-examples = true
+name = "diff"
