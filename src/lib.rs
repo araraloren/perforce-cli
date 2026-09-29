@@ -7,6 +7,7 @@ use crate::cmd::Aliases;
 use crate::cmd::Annotate;
 use crate::cmd::Archive;
 use crate::cmd::Attribute;
+use crate::cmd::Change;
 use crate::cmd::Changes;
 use crate::cmd::Describe;
 use crate::cmd::Diff;
@@ -116,6 +117,11 @@ impl P4Cli {
     /// Set per-revision attributes on file revisions.
     pub fn attribute(&self) -> Attribute {
         Attribute::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Create or edit a changelist specification.
+    pub fn change(&self) -> Change {
+        Change::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// List submitted and pending changelists.
