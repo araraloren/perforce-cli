@@ -265,7 +265,7 @@ impl TakesChangeList for StdoutMode {}
 ///
 /// The four type parameters track, independently and at compile time:
 ///
-/// - `F`: the command form — [`RegularOperationMode`], [`DeleteMode`],
+/// - `M`: the command form — [`RegularOperationMode`], [`DeleteMode`],
 ///   [`StdoutMode`], [`StdinMode`], or [`UserOrVisibilityMode`];
 /// - `O`: the `-f` / `-u` operation — [`ForceOperationMode`],
 ///   [`UpdateOperationMode`], or the `Only*` variants used inside the
@@ -766,9 +766,9 @@ impl<O, C> Change<RegularOperationMode, O, C, Unselected> {
 // SubCommand
 // ---------------------------------------------------------------------------
 
-impl<F, O, C, S> SubCommand for Change<F, O, C, S>
+impl<M, O, C, S> SubCommand for Change<M, O, C, S>
 where
-    F: ExclusiveOption,
+    M: ExclusiveOption,
     O: ExclusiveOption,
     C: ExclusiveOption,
     S: ExclusiveOption,
@@ -793,9 +793,9 @@ where
 // Spawning
 // ---------------------------------------------------------------------------
 
-impl<F, O, C, S, I> ParameterizedSpawn<(I,)> for Change<F, O, C, S>
+impl<M, O, C, S, I> ParameterizedSpawn<(I,)> for Change<M, O, C, S>
 where
-    F: ExclusiveOption + TakesChangeList,
+    M: ExclusiveOption + TakesChangeList,
     O: ExclusiveOption,
     C: ExclusiveOption,
     S: ExclusiveOption,
