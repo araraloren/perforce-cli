@@ -1,6 +1,6 @@
 use std::{
     ffi::OsStr,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::{Child, Stdio},
 };
 
@@ -222,6 +222,23 @@ where
 }
 
 impl<L: ExclusiveOption> Changes<L> {
+    /// Get the Perforce command path.
+    pub fn get_bin(&self) -> &Path {
+        &self.bin
+    }
+
+    /// Set the Perforce command path.
+    pub fn set_bin(&mut self, bin: impl Into<PathBuf>) -> &mut Self {
+        self.bin = bin.into();
+        self
+    }
+
+    /// Set the Perforce command path.
+    pub fn bin(mut self, bin: impl Into<PathBuf>) -> Self {
+        self.set_bin(bin);
+        self
+    }
+
     /// # Description
     ///
     /// g-opts
@@ -770,6 +787,18 @@ impl<L: ExclusiveOption> SubCommand for Changes<L> {
 mod tests {
     use super::*;
     use crate::cmd::args_of;
+
+    #[test]
+    fn bin_accessors_update_executable_path() {
+        let mut command = Changes::new("p4", GlobalOpts::new());
+        assert_eq!(command.get_bin(), Path::new("p4"));
+
+        command.set_bin("/usr/local/bin/p4");
+        assert_eq!(command.get_bin(), Path::new("/usr/local/bin/p4"));
+
+        let command = command.bin("p4.exe");
+        assert_eq!(command.get_bin(), Path::new("p4.exe"));
+    }
 
     #[test]
     fn without_options() {

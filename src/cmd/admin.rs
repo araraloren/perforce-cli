@@ -1,6 +1,6 @@
 use std::ffi::OsStr;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 
 use super::{ExclusiveOption, SubCommand, Unselected};
@@ -49,6 +49,23 @@ impl AdminEntry {
             bin: bin.into(),
             global_opts,
         }
+    }
+
+    /// Get the Perforce command path.
+    pub fn get_bin(&self) -> &Path {
+        &self.bin
+    }
+
+    /// Set the Perforce command path.
+    pub fn set_bin(&mut self, bin: impl Into<PathBuf>) -> &mut Self {
+        self.bin = bin.into();
+        self
+    }
+
+    /// Set the Perforce command path.
+    pub fn bin(mut self, bin: impl Into<PathBuf>) -> Self {
+        self.set_bin(bin);
+        self
     }
 
     /// Take a checkpoint.
@@ -321,6 +338,23 @@ impl ParameterizedSpawn<()> for Admin<ResourceMonitor> {
 }
 
 impl<T: SubCommand> Admin<T> {
+    /// Get the Perforce command path.
+    pub fn get_bin(&self) -> &Path {
+        &self.bin
+    }
+
+    /// Set the Perforce command path.
+    pub fn set_bin(&mut self, bin: impl Into<PathBuf>) -> &mut Self {
+        self.bin = bin.into();
+        self
+    }
+
+    /// Set the Perforce command path.
+    pub fn bin(mut self, bin: impl Into<PathBuf>) -> Self {
+        self.set_bin(bin);
+        self
+    }
+
     /// Creates a `p4 admin` command wrapping the given subcommand.
     ///
     /// `bin` is the path to the Perforce command-line executable.
@@ -1539,6 +1573,19 @@ where
 mod tests {
     use super::*;
     use crate::cmd::args_of;
+
+    #[test]
+    fn bin_accessors_update_executable_path() {
+        let mut entry = AdminEntry::new("p4", GlobalOpts::new());
+        assert_eq!(entry.get_bin(), Path::new("p4"));
+
+        entry.set_bin("/usr/local/bin/p4");
+        assert_eq!(entry.get_bin(), Path::new("/usr/local/bin/p4"));
+
+        // The updated path is carried into the selected subcommand.
+        let command = entry.bin("p4.exe").stop();
+        assert_eq!(command.get_bin(), Path::new("p4.exe"));
+    }
 
     /// Dry-run checks of the assembled `p4 admin ...` command lines; no
     /// process is spawned.
