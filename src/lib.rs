@@ -7,6 +7,8 @@ use crate::cmd::Aliases;
 use crate::cmd::Annotate;
 use crate::cmd::Archive;
 use crate::cmd::Attribute;
+#[cfg(not(feature = "lt2017_2"))]
+use crate::cmd::BackGroundTask;
 use crate::cmd::Change;
 use crate::cmd::Changes;
 use crate::cmd::Describe;
@@ -117,6 +119,16 @@ impl P4Cli {
     /// Set per-revision attributes on file revisions.
     pub fn attribute(&self) -> Attribute {
         Attribute::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Run a background command or trigger on the server.
+    ///
+    /// The returned builder starts with no task target; call
+    /// [`BackGroundTask::execute`] (`-e`) or [`BackGroundTask::trigger`]
+    /// (`-t`) to select the required target before spawning.
+    #[cfg(not(feature = "lt2017_2"))]
+    pub fn bgtask(&self) -> BackGroundTask {
+        BackGroundTask::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a changelist specification.
