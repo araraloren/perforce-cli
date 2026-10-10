@@ -7,6 +7,7 @@ pub mod archive;
 pub mod attribute;
 #[cfg(not(feature = "lt2017_2"))]
 pub mod bgtask;
+pub mod branch;
 pub mod change;
 pub mod changes;
 pub mod describe;
@@ -27,6 +28,7 @@ pub use archive::Archive;
 pub use attribute::Attribute;
 #[cfg(not(feature = "lt2017_2"))]
 pub use bgtask::BackGroundTask;
+pub use branch::Branch;
 pub use change::Change;
 pub use changes::Changes;
 pub use describe::Describe;

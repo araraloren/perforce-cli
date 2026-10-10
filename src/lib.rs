@@ -9,6 +9,7 @@ use crate::cmd::Archive;
 use crate::cmd::Attribute;
 #[cfg(not(feature = "lt2017_2"))]
 use crate::cmd::BackGroundTask;
+use crate::cmd::Branch;
 use crate::cmd::Change;
 use crate::cmd::Changes;
 use crate::cmd::Describe;
@@ -129,6 +130,11 @@ impl P4Cli {
     #[cfg(not(feature = "lt2017_2"))]
     pub fn bgtask(&self) -> BackGroundTask {
         BackGroundTask::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Create or edit a branch mapping and its view.
+    pub fn branch(&self) -> Branch {
+        Branch::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a changelist specification.
