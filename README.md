@@ -32,7 +32,7 @@ time rather than failing at runtime.
 
 ```toml
 [dependencies]
-perforce-cli = "0.1.0-alpha.7"
+perforce-cli = "0.1.0-alpha.8"
 ```
 
 ### Quick start

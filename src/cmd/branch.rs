@@ -39,16 +39,32 @@ pub struct StdinMode {
     force: bool,
 }
 
+/// The stdout form state in which `-S stream` has been supplied.
+///
+/// Carries the stream name and unlocks the `-P parent` option, which
+/// requires `-S` and evaluates the stream as if it were a child of the
+/// given parent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StreamSelected {
+    stream: String,
+
+    parent: Option<String>,
+}
+
 /// The stdout form: `p4 branch [-S stream [-P parent]] -o placeholder`.
 ///
 /// Write the branch mapping to standard output without invoking an editor.
 /// The optional `-S stream` displays the mapping generated for the specified
 /// stream; `-P parent` requires `-S` and evaluates the stream as if it were
 /// a child of the given parent.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct StdoutMode {
-    stream: Option<String>,
-    parent: Option<String>,
+///
+/// The `S` type parameter tracks whether `-S` has been supplied: the
+/// [`Unselected`] state carries no stream, and supplying a stream with
+/// `Branch::stream` transitions to the [`StreamSelected`] state, which
+/// unlocks the `-P` option.
+#[derive(Debug, Clone, Default)]
+pub struct StdoutMode<S = Unselected> {
+    stream_opts: S,
 }
 
 // ---------------------------------------------------------------------------
@@ -81,12 +97,16 @@ impl ExclusiveOption for StdinMode {
     }
 }
 
-impl ExclusiveOption for StdoutMode {
+impl ExclusiveOption for StdoutMode<Unselected> {
     fn inject_args(&self, command: &mut Command) {
-        if let Some(stream) = &self.stream {
-            command.arg("-S").arg(stream);
-        }
-        if let Some(parent) = &self.parent {
+        command.arg("-o");
+    }
+}
+
+impl ExclusiveOption for StdoutMode<StreamSelected> {
+    fn inject_args(&self, command: &mut Command) {
+        command.arg("-S").arg(&self.stream_opts.stream);
+        if let Some(parent) = &self.stream_opts.parent {
             command.arg("-P").arg(parent);
         }
         command.arg("-o");
@@ -122,8 +142,9 @@ impl ExclusiveOption for StdoutMode {
 /// - [`StdinMode`] (`-i`, entered via [`Self::stdin`]): read the branch
 ///   mapping from standard input.
 /// - [`StdoutMode`] (`-o`, entered via [`Self::stdout`]): write the branch
-///   mapping to standard output; the `-S stream` and `-P parent` options
-///   are available as fields on this form.
+///   mapping to standard output; `Branch::stream` supplies `-S` and
+///   transitions to the [`StreamSelected`] state, which unlocks
+///   `Branch::parent` (`-P` requires `-S`).
 #[derive(Debug, Clone, Default)]
 pub struct Branch<M = Unselected> {
     bin: PathBuf,
@@ -183,8 +204,9 @@ impl Branch<Unselected> {
     /// Enters the stdout form: `p4 branch [-S stream [-P parent]] -o
     /// placeholder`.
     ///
-    /// Use [`Branch::stream`] and [`Branch::parent`] on the entered form to
-    /// add the `-S` and `-P` options.
+    /// Use `Branch::stream` on the entered form to supply `-S`; that
+    /// transitions to the [`StreamSelected`] state and unlocks
+    /// `Branch::parent` (`-P` requires `-S`).
     pub fn stdout(self) -> Branch<StdoutMode> {
         Branch {
             bin: self.bin,
@@ -437,10 +459,10 @@ impl Branch<StdinMode> {
 }
 
 // ---------------------------------------------------------------------------
-// StdoutMode: stream and parent accessors
+// StdoutMode<Unselected>: -S transition
 // ---------------------------------------------------------------------------
 
-impl Branch<StdoutMode> {
+impl Branch<StdoutMode<Unselected>> {
     /// # Description
     ///
     /// -S stream
@@ -448,19 +470,44 @@ impl Branch<StdoutMode> {
     /// Display the mapping generated for the specified stream. This option
     /// enables you to see how change is propagated between the stream and its
     /// parent.
-    pub fn get_stream(&self) -> Option<&String> {
-        self.mode.stream.as_ref()
+    ///
+    /// Transitions this command to the [`StreamSelected`] state, which
+    /// unlocks the `-P` option.
+    pub fn stream(self, v: impl Into<String>) -> Branch<StdoutMode<StreamSelected>> {
+        Branch {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: StdoutMode {
+                stream_opts: StreamSelected {
+                    stream: v.into(),
+                    parent: None,
+                },
+            },
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// StdoutMode<StreamSelected>: stream and parent accessors
+// ---------------------------------------------------------------------------
+
+impl Branch<StdoutMode<StreamSelected>> {
+    /// # Description
+    ///
+    /// -S stream
+    ///
+    /// The stream whose generated mapping is displayed.
+    pub fn get_stream(&self) -> &str {
+        &self.mode.stream_opts.stream
     }
 
     /// # Description
     ///
     /// -S stream
     ///
-    /// Display the mapping generated for the specified stream. This option
-    /// enables you to see how change is propagated between the stream and its
-    /// parent.
+    /// The stream whose generated mapping is displayed.
     pub fn set_stream(&mut self, v: impl Into<String>) -> &mut Self {
-        self.mode.stream = Some(v.into());
+        self.mode.stream_opts.stream = v.into();
         self
     }
 
@@ -468,11 +515,10 @@ impl Branch<StdoutMode> {
     ///
     /// -S stream
     ///
-    /// Display the mapping generated for the specified stream. This option
-    /// enables you to see how change is propagated between the stream and its
-    /// parent.
+    /// The stream whose generated mapping is displayed. Preserves any `-P`
+    /// parent already set.
     pub fn stream(mut self, v: impl Into<String>) -> Self {
-        self.mode.stream = Some(v.into());
+        self.mode.stream_opts.stream = v.into();
         self
     }
 
@@ -482,9 +528,9 @@ impl Branch<StdoutMode> {
     ///
     /// For a specified stream, display the mapping that is generated by
     /// hypothetically treating the stream as if it were a child of the
-    /// specified parent. Requires `-S`.
+    /// specified parent.
     pub fn get_parent(&self) -> Option<&String> {
-        self.mode.parent.as_ref()
+        self.mode.stream_opts.parent.as_ref()
     }
 
     /// # Description
@@ -493,9 +539,9 @@ impl Branch<StdoutMode> {
     ///
     /// For a specified stream, display the mapping that is generated by
     /// hypothetically treating the stream as if it were a child of the
-    /// specified parent. Requires `-S`.
+    /// specified parent.
     pub fn set_parent(&mut self, v: impl Into<String>) -> &mut Self {
-        self.mode.parent = Some(v.into());
+        self.mode.stream_opts.parent = Some(v.into());
         self
     }
 
@@ -505,9 +551,9 @@ impl Branch<StdoutMode> {
     ///
     /// For a specified stream, display the mapping that is generated by
     /// hypothetically treating the stream as if it were a child of the
-    /// specified parent. Requires `-S`.
+    /// specified parent.
     pub fn parent(mut self, v: impl Into<String>) -> Self {
-        self.mode.parent = Some(v.into());
+        self.mode.stream_opts.parent = Some(v.into());
         self
     }
 }
@@ -621,7 +667,11 @@ impl ParameterizedSpawn<(Stdio,)> for Branch<StdinMode> {
 }
 
 // Stdout form: exactly 1 placeholder.
-impl<I: AsRef<OsStr>> ParameterizedSpawn<(I,)> for Branch<StdoutMode> {
+impl<S, I> ParameterizedSpawn<(I,)> for Branch<StdoutMode<S>>
+where
+    StdoutMode<S>: ExclusiveOption,
+    I: AsRef<OsStr>,
+{
     type Output = Child;
     type Error = std::io::Error;
 
@@ -658,6 +708,8 @@ mod tests {
     // Compile-time rejection: Branch<Unselected> has no spawn impl.
     // Compile-time rejection: Branch<StdoutMode> has no `force()` method
     // (stdout form does not accept -f).
+    // Compile-time rejection: Branch<StdoutMode> (no -S yet) has no
+    // `parent()`/`set_parent()`/`get_parent()` method (-P requires -S).
 
     /// Dry-run checks of the assembled `p4 branch` command line; no process
     /// is spawned.
@@ -734,6 +786,26 @@ mod tests {
     }
 
     #[test]
+    fn renaming_stream_preserves_parent() {
+        let branch = Branch::new("p4", GlobalOpts::new())
+            .stdout()
+            .stream("//stream1/5dev1")
+            .parent("//stream1/main5")
+            .stream("//stream2/5dev2");
+        assert_eq!(
+            args_of(&branch.setup_command("p4")),
+            [
+                "branch",
+                "-S",
+                "//stream2/5dev2",
+                "-P",
+                "//stream1/main5",
+                "-o"
+            ]
+        );
+    }
+
+    #[test]
     fn force_can_be_set_inside_general_delete_and_stdin() {
         let general = Branch::new("p4", GlobalOpts::new())
             .force(false)
@@ -761,10 +833,11 @@ mod tests {
         branch.set_force(true);
         assert!(branch.get_force());
 
-        let mut stdout = Branch::new("p4", GlobalOpts::new()).stdout();
-        stdout.set_stream("//depot/main");
+        let mut stdout = Branch::new("p4", GlobalOpts::new())
+            .stdout()
+            .stream("//depot/main");
         stdout.set_parent("//depot/dev");
-        assert_eq!(stdout.get_stream(), Some(&String::from("//depot/main")));
+        assert_eq!(stdout.get_stream(), "//depot/main");
         assert_eq!(stdout.get_parent(), Some(&String::from("//depot/dev")));
     }
 
