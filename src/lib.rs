@@ -11,6 +11,7 @@ use crate::cmd::Attribute;
 use crate::cmd::BackGroundTask;
 use crate::cmd::Branch;
 use crate::cmd::Branches;
+use crate::cmd::CachePurge;
 use crate::cmd::Change;
 use crate::cmd::Changes;
 use crate::cmd::Describe;
@@ -141,6 +142,17 @@ impl P4Cli {
     /// List existing branch mappings.
     pub fn branches(&self) -> Branches {
         Branches::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Reclaim disk space on a replicated server.
+    ///
+    /// The returned builder starts with no purge goal and has no effect;
+    /// call [`CachePurge::purge_all`] (`-a`), [`CachePurge::free_space`]
+    /// (`-f`), [`CachePurge::revision_count`] (`-m`), or
+    /// [`CachePurge::size`] (`-s`) to select the required goal before
+    /// spawning.
+    pub fn cachepurge(&self) -> CachePurge {
+        CachePurge::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a changelist specification.
