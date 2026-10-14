@@ -163,18 +163,24 @@ Supported versions: `v2014_1`, `v2014_2`, `v2015_1`, `v2015_2`, `v2016_1`,
 
 ## Supported commands
 
-`add`, `admin`, `aliases`, `annotate`, `archive`, `attribute`, `changes`,
-`describe`, `edit`, `filelog`, `print`, `sync`, `where`.
+`add`, `admin`, `aliases`, `annotate`, `archive`, `attribute`, `bgtask`,
+`branch`, `branches`, `cachepurge`, `change`, `changes`, `clean`, `describe`,
+`diff`, `diff2`, `edit`, `filelog`, `print`, `sync`, `where`.
 
 More commands are being added.
 
 ## Examples
 
 See [`examples/print.rs`](examples/print.rs), which covers capturing output,
-chaining builders, and spawning a streaming child process.
+chaining builders, and spawning a streaming child process;
+[`examples/diff.rs`](examples/diff.rs), which covers compile-time mode
+transitions; and [`examples/filelog.rs`](examples/filelog.rs), which covers
+the file revision history command and its state-dependent options.
 
 ```text
 cargo run --example print
+cargo run --example diff
+cargo run --example filelog
 ```
 
 ## License

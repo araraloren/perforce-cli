@@ -14,6 +14,7 @@ use crate::cmd::Branches;
 use crate::cmd::CachePurge;
 use crate::cmd::Change;
 use crate::cmd::Changes;
+use crate::cmd::Clean;
 use crate::cmd::Describe;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
@@ -153,6 +154,17 @@ impl P4Cli {
     /// spawning.
     pub fn cachepurge(&self) -> CachePurge {
         CachePurge::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Restore client workspace files to match the state of corresponding
+    /// depot files.
+    ///
+    /// Without file arguments, the files in your local working directory are
+    /// used; pass file arguments to
+    /// [`ParameterizedSpawn::spawn_with`](crate::spawn::ParameterizedSpawn::spawn_with)
+    /// to limit the scope.
+    pub fn clean(&self) -> Clean {
+        Clean::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a changelist specification.
