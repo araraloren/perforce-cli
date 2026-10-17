@@ -15,6 +15,7 @@ use crate::cmd::CachePurge;
 use crate::cmd::Change;
 use crate::cmd::Changes;
 use crate::cmd::Clean;
+use crate::cmd::Client;
 use crate::cmd::Describe;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
@@ -165,6 +166,25 @@ impl P4Cli {
     /// to limit the scope.
     pub fn clean(&self) -> Clean {
         Clean::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Create or edit a client workspace specification and its view.
+    ///
+    /// The returned builder starts in the [`GeneralMode`](crate::cmd::client::GeneralMode)
+    /// state (`p4 client [-f] [-t template] [-T type] [name]`); call
+    /// transition methods such as [`Client::delete`](crate::cmd::client::Client::delete)
+    /// or [`Client::stdout`](crate::cmd::client::Client::stdout) to select
+    /// another syntax form.
+    pub fn client(&self) -> Client {
+        Client::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Create or edit a client workspace specification and its view.
+    ///
+    /// This is an alias for [`Self::client`], corresponding to the `p4
+    /// workspace` command.
+    pub fn workspace(&self) -> Client {
+        Client::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a changelist specification.
