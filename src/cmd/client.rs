@@ -17,7 +17,9 @@ use crate::spawn::ParameterizedSpawn;
 /// The `-f` (force) flag is set.
 ///
 /// Entered with [`Client::force`]; valid in the [`GeneralMode`],
-/// [`DeleteMode`], [`SwitchViewMode`], and [`StdinMode`] states.
+/// [`DeleteMode`],
+#[cfg_attr(not(feature = "lt2022_1"), doc = "[`SwitchViewMode`],")]
+/// and [`StdinMode`] states.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ForceSet;
 
@@ -48,11 +50,13 @@ impl ExclusiveOption for TemplateSet {
 ///
 /// Entered with [`Client::workspace_type`]; valid in the [`GeneralMode`]
 /// and [`StdoutMode`] states.
+#[cfg(not(feature = "lt2016_2"))]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TypeSet {
     workspace_type: WorkSpaceType,
 }
 
+#[cfg(not(feature = "lt2016_2"))]
 impl ExclusiveOption for TypeSet {
     fn inject_args(&self, command: &mut Command) {
         command.arg("-T").arg(self.workspace_type.as_str());
@@ -62,6 +66,7 @@ impl ExclusiveOption for TypeSet {
 /// The type of a client workspace, set with `-T type` or the `Type:` field.
 ///
 /// By default, clients are [`Writable`](WorkSpaceType::Writable).
+#[cfg(not(feature = "lt2016_2"))]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum WorkSpaceType {
     /// `writeable`: for general use; the have list is tracked in the
@@ -76,19 +81,24 @@ pub enum WorkSpaceType {
     Partitioned,
     /// `partitioned-jnl`: like `partitioned`, but journaled, checkpointed,
     /// and recoverable.
+    #[cfg(not(feature = "lt2024_1"))]
     PartitionedJnl,
     /// `graph`: for use with depots and repos of type graph and Git
     /// Connector.
+    #[cfg(not(feature = "lt2024_1"))]
     Graph,
 }
 
+#[cfg(not(feature = "lt2016_2"))]
 impl WorkSpaceType {
     fn as_str(&self) -> &'static str {
         match self {
             WorkSpaceType::Writable => "writeable",
             WorkSpaceType::Readonly => "readonly",
             WorkSpaceType::Partitioned => "partitioned",
+            #[cfg(not(feature = "lt2024_1"))]
             WorkSpaceType::PartitionedJnl => "partitioned-jnl",
+            #[cfg(not(feature = "lt2024_1"))]
             WorkSpaceType::Graph => "graph",
         }
     }
@@ -98,17 +108,33 @@ impl WorkSpaceType {
 // Command modes
 // ---------------------------------------------------------------------------
 
-/// The default form: `p4 client [-f] [-t template] [-T type] [name]`.
-///
-/// Create or edit a client workspace specification. This is the initial
-/// state of [`Client`]; from here the command can transition into any of
-/// the other modes, subject to the options already set:
-///
-/// - with `-f` set, [`Client::delete`], [`Client::switch_view_stream`],
-///   [`Client::switch_view_template`], [`Client::switch_view`], and
-///   [`Client::stdin`] remain available (all of them accept `-f`)
-/// - with `-t` / `-T` set, [`Client::stdout`] remains available (the `-o`
-///   form accepts both)
+#[cfg_attr(
+    feature = "lt2016_2",
+    doc = "The default form: `p4 client [-f] [-t template] [name]`.",
+    doc = "",
+    doc = "Create or edit a client workspace specification. This is the initial state of [`Client`]; from here the command can transition into any of the other modes, subject to the options already set:",
+    doc = "",
+    doc = "- with `-f` set, [`Client::delete`] and [`Client::stdin`] remain available (both of them accept `-f`)",
+    doc = "- with `-t` set, [`Client::stdout`] remains available (the `-o` form accepts it)"
+)]
+#[cfg_attr(
+    all(feature = "lt2022_1", not(feature = "lt2016_2")),
+    doc = "The default form: `p4 client [-f] [-t template] [-T type] [name]`.",
+    doc = "",
+    doc = "Create or edit a client workspace specification. This is the initial state of [`Client`]; from here the command can transition into any of the other modes, subject to the options already set:",
+    doc = "",
+    doc = "- with `-f` set, [`Client::delete`] and [`Client::stdin`] remain available (both of them accept `-f`)",
+    doc = "- with `-t` / `-T` set, [`Client::stdout`] remains available (the `-o` form accepts both)"
+)]
+#[cfg_attr(
+    not(feature = "lt2022_1"),
+    doc = "The default form: `p4 client [-f] [-t template] [-T type] [name]`.",
+    doc = "",
+    doc = "Create or edit a client workspace specification. This is the initial state of [`Client`]; from here the command can transition into any of the other modes, subject to the options already set:",
+    doc = "",
+    doc = "- with `-f` set, [`Client::delete`], [`Client::switch_view_stream`], [`Client::switch_view_template`], [`Client::switch_view`], and [`Client::stdin`] remain available (all of them accept `-f`)",
+    doc = "- with `-t` / `-T` set, [`Client::stdout`] remains available (the `-o` form accepts both)"
+)]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct GeneralMode;
 
@@ -119,10 +145,12 @@ pub enum ShelvedHandling {
     /// intact.
     Keep,
     /// `-Fd`: the client and the shelved changes are both deleted.
+    #[cfg(not(feature = "lt2024_1"))]
     Delete,
 }
 
 /// Marker: the `--serverid=X` option is set on the delete form.
+#[cfg(not(feature = "lt2015_2"))]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ServerIdSet;
 
@@ -133,6 +161,7 @@ pub struct ShelvedKept;
 
 /// Marker: the `-Fd` option is set; the client and the shelved changes
 /// are both deleted.
+#[cfg(not(feature = "lt2024_1"))]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ShelvedDeleted;
 
@@ -147,6 +176,7 @@ impl ServerIdState for Unselected {
     const SET: bool = false;
 }
 
+#[cfg(not(feature = "lt2015_2"))]
 impl ServerIdState for ServerIdSet {
     const SET: bool = true;
 }
@@ -179,6 +209,7 @@ impl ShelvedState for ShelvedKept {
     }
 }
 
+#[cfg(not(feature = "lt2024_1"))]
 impl ShelvedState for ShelvedDeleted {
     fn handling() -> Option<ShelvedHandling> {
         Some(ShelvedHandling::Delete)
@@ -205,43 +236,63 @@ impl ServerIdCompatible for ShelvedKept {}
 /// - `(Unselected, Unselected, Unselected)` — `p4 client -d name`
 /// - `(Unselected, Unselected, ForceSet)` — `p4 client -d -f name`
 /// - `(Unselected, ShelvedKept, ForceSet)` — `p4 client -d -f -Fs name`
-/// - `(Unselected, ShelvedDeleted, ForceSet)` — `p4 client -d -f -Fd name`
-/// - `(ServerIdSet, Unselected, ForceSet)` — `p4 client -d -f --serverid=X name`
-/// - `(ServerIdSet, ShelvedKept, ForceSet)` — `p4 client -d -f --serverid=X -Fs name`
+#[cfg_attr(
+    not(feature = "lt2024_1"),
+    doc = "- `(Unselected, ShelvedDeleted, ForceSet)` — `p4 client -d -f -Fd name`"
+)]
+#[cfg_attr(
+    not(feature = "lt2015_2"),
+    doc = "- `(ServerIdSet, Unselected, ForceSet)` — `p4 client -d -f --serverid=X name`",
+    doc = "- `(ServerIdSet, ShelvedKept, ForceSet)` — `p4 client -d -f --serverid=X -Fs name`"
+)]
 ///
-/// States where `-Fs`, `-Fd`, or `--serverid=X` is selected without `-f`
-/// are reachable as intermediate builder states (the options may be
-/// selected in any order) but are not marked here, so they cannot be
-/// spawned until [`Client::force`] is called.
+/// States where an option requiring `-f` is selected without `-f` are
+/// reachable as intermediate builder states (the options may be selected
+/// in any order) but are not marked here, so they cannot be spawned until
+/// [`Client::force`] is called.
 #[doc(hidden)]
 pub trait ValidDeleteCombination {}
 
 impl ValidDeleteCombination for (Unselected, Unselected, Unselected) {}
 impl ValidDeleteCombination for (Unselected, Unselected, ForceSet) {}
 impl ValidDeleteCombination for (Unselected, ShelvedKept, ForceSet) {}
+#[cfg(not(feature = "lt2024_1"))]
 impl ValidDeleteCombination for (Unselected, ShelvedDeleted, ForceSet) {}
+#[cfg(not(feature = "lt2015_2"))]
 impl ValidDeleteCombination for (ServerIdSet, Unselected, ForceSet) {}
+#[cfg(not(feature = "lt2015_2"))]
 impl ValidDeleteCombination for (ServerIdSet, ShelvedKept, ForceSet) {}
 
-/// The delete form: `p4 client -d [-f [-Fs|-Fd]] name` and
-/// `p4 client -d -f --serverid=X [-Fs] name`.
-///
-/// The two type parameters encode the documented compatibility matrix at
-/// compile time:
-///
-/// - `I` tracks `--serverid=X`: [`Unselected`] or [`ServerIdSet`]
-/// - `S` tracks the shelved handling: [`Unselected`], [`ShelvedKept`]
-///   (`-Fs`), or [`ShelvedDeleted`] (`-Fd`)
-///
-/// `-Fs` and `-Fd` are mutually exclusive, and `--serverid=X` can only be
-/// combined with `-Fs`, never with `-Fd`; the illegal combinations have no
-/// reachable state. The options may be selected in any order (for example
-/// `delete_shelved().force()` is equivalent to `force().delete_shelved()`);
-/// a state where `-Fs`, `-Fd`, or `--serverid=X` is set without `-f` is an
-/// intermediate state that cannot be spawned until [`Client::force`] is
-/// called. Entered with [`Client::delete`], or directly from the
-/// [`GeneralMode`] state via [`Client::server_id`],
-/// [`Client::keep_shelved`], and [`Client::delete_shelved`].
+#[cfg_attr(
+    feature = "lt2015_2",
+    doc = "The delete form: `p4 client -d [-f [-Fs]] name`.",
+    doc = "",
+    doc = "The `S` type parameter tracks the shelved handling: [`Unselected`] or [`ShelvedKept`] (`-Fs`).",
+    doc = "",
+    doc = "The options may be selected in any order (for example `keep_shelved().force()` is equivalent to `force().keep_shelved()`); a state where `-Fs` is set without `-f` is an intermediate state that cannot be spawned until [`Client::force`] is called. Entered with [`Client::delete`], or directly from the [`GeneralMode`] state via [`Client::keep_shelved`]."
+)]
+#[cfg_attr(
+    all(feature = "lt2024_1", not(feature = "lt2015_2")),
+    doc = "The delete form: `p4 client -d [-f [-Fs]] name` and `p4 client -d -f --serverid=X [-Fs] name`.",
+    doc = "",
+    doc = "The two type parameters encode the documented compatibility matrix at compile time:",
+    doc = "",
+    doc = "- `I` tracks `--serverid=X`: [`Unselected`] or [`ServerIdSet`]",
+    doc = "- `S` tracks the shelved handling: [`Unselected`] or [`ShelvedKept`] (`-Fs`)",
+    doc = "",
+    doc = "`--serverid=X` can only be combined with `-Fs`; the illegal combinations have no reachable state. The options may be selected in any order (for example `keep_shelved().force()` is equivalent to `force().keep_shelved()`); a state where `-Fs` or `--serverid=X` is set without `-f` is an intermediate state that cannot be spawned until [`Client::force`] is called. Entered with [`Client::delete`], or directly from the [`GeneralMode`] state via [`Client::server_id`] and [`Client::keep_shelved`]."
+)]
+#[cfg_attr(
+    not(feature = "lt2024_1"),
+    doc = "The delete form: `p4 client -d [-f [-Fs|-Fd]] name` and `p4 client -d -f --serverid=X [-Fs] name`.",
+    doc = "",
+    doc = "The two type parameters encode the documented compatibility matrix at compile time:",
+    doc = "",
+    doc = "- `I` tracks `--serverid=X`: [`Unselected`] or [`ServerIdSet`]",
+    doc = "- `S` tracks the shelved handling: [`Unselected`], [`ShelvedKept`] (`-Fs`), or [`ShelvedDeleted`] (`-Fd`)",
+    doc = "",
+    doc = "`-Fs` and `-Fd` are mutually exclusive, and `--serverid=X` can only be combined with `-Fs`, never with `-Fd`; the illegal combinations have no reachable state. The options may be selected in any order (for example `delete_shelved().force()` is equivalent to `force().delete_shelved()`); a state where `-Fs`, `-Fd`, or `--serverid=X` is set without `-f` is an intermediate state that cannot be spawned until [`Client::force`] is called. Entered with [`Client::delete`], or directly from the [`GeneralMode`] state via [`Client::server_id`], [`Client::keep_shelved`], and [`Client::delete_shelved`]."
+)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DeleteMode<I = Unselected, S = Unselected> {
     server_id: Option<String>,
@@ -249,11 +300,25 @@ pub struct DeleteMode<I = Unselected, S = Unselected> {
     shelved: S,
 }
 
-/// The output form: `p4 client -o [-t template] [-T type] [name]`.
+#[cfg_attr(
+    feature = "lt2016_2",
+    doc = "The output form: `p4 client -o [-t template] [name]`."
+)]
+#[cfg_attr(
+    not(feature = "lt2016_2"),
+    doc = "The output form: `p4 client -o [-t template] [-T type] [name]`."
+)]
 ///
 /// Write the client workspace specification to standard output. Entered
-/// with [`Client::stdout`]; carries the `-t` / `-T` options over from
-/// [`GeneralMode`].
+/// with [`Client::stdout`];
+#[cfg_attr(
+    feature = "lt2016_2",
+    doc = "carries the `-t` option over from [`GeneralMode`]."
+)]
+#[cfg_attr(
+    not(feature = "lt2016_2"),
+    doc = "carries the `-t` and `-T` options over from [`GeneralMode`]."
+)]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct StdoutMode;
 
@@ -318,17 +383,40 @@ impl ExclusiveOption for TemplateSwitch {
     }
 }
 
-/// The switch-view form: `p4 client -s [-f] (-S stream | -t template)
-/// [name]`.
+#[cfg_attr(
+    feature = "lt2022_1",
+    doc = "The switch-view form: `p4 client -s (-S stream | -t template) [name]`."
+)]
+#[cfg_attr(
+    not(feature = "lt2022_1"),
+    doc = "The switch-view form: `p4 client -s [-f] (-S stream | -t template) [name]`."
+)]
 ///
-/// Switching views is not allowed in a client that has opened files; the
-/// `-f` option can be used with `-s` to force switching with opened files.
+/// Switching views is not allowed in a client that has opened files.
+#[cfg_attr(
+    not(feature = "lt2022_1"),
+    doc = "The `-f` option can be used with `-s` to force switching with opened files."
+)]
+///
 /// View switching has no effect on files in a client workspace until
 /// `p4 sync` is run.
+///
+/// Entered with [`Client::switch_view_stream`] or [`Client::switch_view`].
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SwitchViewMode<V> {
     view: V,
 }
+
+/// Marks the `-f` states that may be carried into the switch-view form:
+/// always [`Unselected`]; [`ForceSet`] where the selected feature set
+/// accepts `-f` on the `-s` form.
+#[doc(hidden)]
+pub trait SwitchViewForceCompatible: ExclusiveOption {}
+
+impl SwitchViewForceCompatible for Unselected {}
+
+#[cfg(not(feature = "lt2022_1"))]
+impl SwitchViewForceCompatible for ForceSet {}
 
 /// The input form: `p4 client -i [-f]`.
 ///
@@ -451,39 +539,103 @@ where
 // Client
 // ---------------------------------------------------------------------------
 
-/// ```text
-/// p4 client [-f] [-t template] [-T type] [name]
-/// p4 client -d [-f [-Fs|-Fd]] name
-/// p4 client -o [-t template] [-T type] [name]
-/// p4 client -S stream [[-c change] -o] [name]
-/// p4 client -s [-f] -S stream [name]
-/// p4 client -s [-f] -t template [name]
-/// p4 client -i [-f]
-/// p4 client -d -f --serverid=X [-Fs] name
-/// ```
+#[cfg_attr(
+    feature = "lt2015_2",
+    doc = "```text",
+    doc = "p4 client [-f] [-t template] [clientname]",
+    doc = "p4 client -o [-t template] [clientname]",
+    doc = "p4 client -d [-f [-Fs]] clientname",
+    doc = "p4 client -s [-S stream | -t clientname] clientname",
+    doc = "p4 client -S stream [[-c change] -o] [clientname]",
+    doc = "p4 client -i [-f]",
+    doc = "```"
+)]
+#[cfg_attr(
+    all(feature = "lt2016_2", not(feature = "lt2015_2")),
+    doc = "```text",
+    doc = "p4 client [-f] [-t template] [clientname]",
+    doc = "p4 client -o [-t template] [clientname]",
+    doc = "p4 client -d [-f [-Fs]] clientname",
+    doc = "p4 client -s [-S stream | -t clientname] clientname",
+    doc = "p4 client -S stream [[-c change] -o] [clientname]",
+    doc = "p4 client -i [-f]",
+    doc = "p4 client -d -f --serverid=serverid [-Fs]",
+    doc = "```"
+)]
+#[cfg_attr(
+    all(feature = "lt2022_1", not(feature = "lt2016_2")),
+    doc = "```text",
+    doc = "p4 client [-f] [-t template] [-T type] [clientname]",
+    doc = "p4 client -o [-t template] [-T type] [clientname]",
+    doc = "p4 client -d [-f [-Fs]] clientname",
+    doc = "p4 client -s [-S stream | -t clientname] clientname",
+    doc = "p4 client -S stream [[-c change] -o] [clientname]",
+    doc = "p4 client -i [-f]",
+    doc = "p4 client -d -f --serverid=serverid [-Fs]",
+    doc = "```"
+)]
+#[cfg_attr(
+    all(feature = "lt2024_1", not(feature = "lt2022_1")),
+    doc = "```text",
+    doc = "p4 client [-f] [-t template] [-T type] [name]",
+    doc = "p4 client -d [-f [-Fs]] name",
+    doc = "p4 client -o [-t template] [-T type] [name]",
+    doc = "p4 client -S stream [[-c change] -o] [name]",
+    doc = "p4 client -s [-f] -S stream [name]",
+    doc = "p4 client -s [-f] -t template [name]",
+    doc = "p4 client -i [-f]",
+    doc = "p4 client -d -f --serverid=X [-Fs] name",
+    doc = "```"
+)]
+#[cfg_attr(
+    not(feature = "lt2024_1"),
+    doc = "```text",
+    doc = "p4 client [-f] [-t template] [-T type] [name]",
+    doc = "p4 client -d [-f [-Fs|-Fd]] name",
+    doc = "p4 client -o [-t template] [-T type] [name]",
+    doc = "p4 client -S stream [[-c change] -o] [name]",
+    doc = "p4 client -s [-f] -S stream [name]",
+    doc = "p4 client -s [-f] -t template [name]",
+    doc = "p4 client -i [-f]",
+    doc = "p4 client -d -f --serverid=X [-Fs] name",
+    doc = "```"
+)]
 ///
 /// Create or edit a client workspace specification and its view.
 ///
-/// The type parameters track the mode `M` and the orthogonal option
-/// dimensions `F` (`-f`), `T` (`-t template`), and `W` (`-T type`) at
-/// compile time, so a transition is only available when every option
-/// already set is valid in the target form:
-///
-/// - [`Self::delete`] requires `-t` / `-T` to be unset and ends in the
-///   terminal [`DeleteMode`] state, from which no further transitions are
-///   possible
-/// - [`Self::stdout`] requires `-f` to be unset; `-t` / `-T` are carried
-///   into the [`StdoutMode`] state
-/// - [`Self::stream`] requires `-f` / `-t` / `-T` to be unset
-/// - [`Self::switch_view_stream`] / [`Self::switch_view_template`] /
-///   [`Self::switch_view`] require `-T` to be unset; for the stream form
-///   `-t` must also be unset, while the template form requires `-t` to be
-///   set. `-f` is carried into the [`SwitchViewMode`] state
-/// - the `-s -S stream` form has a second entry path: select the stream
-///   with [`Self::stream`] and then [`Self::switch_view`] (only before
-///   `-o` is selected); `-f` is added afterwards if needed
-/// - [`Self::stdin`] requires `-t` / `-T` to be unset; `-f` is carried
-///   into the [`StdinMode`] state
+#[cfg_attr(
+    feature = "lt2016_2",
+    doc = "The type parameters track the mode `M` and the orthogonal option dimensions `F` (`-f`) and `T` (`-t template`) at compile time, so a transition is only available when every option already set is valid in the target form:",
+    doc = "",
+    doc = "- [`Self::delete`] requires `-t` to be unset and ends in the terminal [`DeleteMode`] state, from which no further transitions are possible",
+    doc = "- [`Self::stdout`] requires `-f` to be unset; `-t` is carried into the [`StdoutMode`] state",
+    doc = "- [`Self::stream`] requires `-f` / `-t` to be unset",
+    doc = "- [`Self::switch_view_stream`] / [`Self::switch_view_template`] / [`Self::switch_view`] switch the view: for the stream form `-t` must be unset, while the template form requires `-t` to be set",
+    doc = "- the `-s -S stream` form has a second entry path: select the stream with [`Self::stream`] and then [`Self::switch_view`] (only before `-o` is selected)",
+    doc = "- [`Self::stdin`] requires `-t` to be unset; `-f` is carried into the [`StdinMode`] state"
+)]
+#[cfg_attr(
+    all(feature = "lt2022_1", not(feature = "lt2016_2")),
+    doc = "The type parameters track the mode `M` and the orthogonal option dimensions `F` (`-f`), `T` (`-t template`), and `W` (`-T type`) at compile time, so a transition is only available when every option already set is valid in the target form:",
+    doc = "",
+    doc = "- [`Self::delete`] requires `-t` / `-T` to be unset and ends in the terminal [`DeleteMode`] state, from which no further transitions are possible",
+    doc = "- [`Self::stdout`] requires `-f` to be unset; `-t` / `-T` are carried into the [`StdoutMode`] state",
+    doc = "- [`Self::stream`] requires `-f` / `-t` / `-T` to be unset",
+    doc = "- [`Self::switch_view_stream`] / [`Self::switch_view_template`] / [`Self::switch_view`] require `-T` to be unset; for the stream form `-t` must also be unset, while the template form requires `-t` to be set",
+    doc = "- the `-s -S stream` form has a second entry path: select the stream with [`Self::stream`] and then [`Self::switch_view`] (only before `-o` is selected)",
+    doc = "- [`Self::stdin`] requires `-t` / `-T` to be unset; `-f` is carried into the [`StdinMode`] state"
+)]
+#[cfg_attr(
+    not(feature = "lt2022_1"),
+    doc = "The type parameters track the mode `M` and the orthogonal option dimensions `F` (`-f`), `T` (`-t template`), and `W` (`-T type`) at compile time, so a transition is only available when every option already set is valid in the target form:",
+    doc = "",
+    doc = "- [`Self::delete`] requires `-t` / `-T` to be unset and ends in the terminal [`DeleteMode`] state, from which no further transitions are possible",
+    doc = "- [`Self::stdout`] requires `-f` to be unset; `-t` / `-T` are carried into the [`StdoutMode`] state",
+    doc = "- [`Self::stream`] requires `-f` / `-t` / `-T` to be unset",
+    doc = "- [`Self::switch_view_stream`] / [`Self::switch_view_template`] / [`Self::switch_view`] require `-T` to be unset; for the stream form `-t` must also be unset, while the template form requires `-t` to be set. `-f` is carried into the [`SwitchViewMode`] state",
+    doc = "- the `-s -S stream` form has a second entry path: select the stream with [`Self::stream`] and then [`Self::switch_view`] (only before `-o` is selected); `-f` is added afterwards if needed",
+    doc = "- [`Self::stdin`] requires `-t` / `-T` to be unset; `-f` is carried into the [`StdinMode`] state"
+)]
 #[derive(Debug, Clone, Default)]
 pub struct Client<M = GeneralMode, F = Unselected, T = Unselected, W = Unselected> {
     bin: PathBuf,
@@ -881,10 +1033,18 @@ where
     /// administrator to delete a locked workspace that is owned by other
     /// user. This also reverts any files opened on the workspace.
     ///
-    /// `-f` is required by the `-Fs`, `-Fd`, and `--serverid=X` options,
-    /// but it may be selected before or after them; calling `force` on a
-    /// state carrying those options completes the documented form and
-    /// makes the command spawnable.
+    #[cfg_attr(
+        feature = "lt2015_2",
+        doc = "`-f` is required by the `-Fs` option, but it may be selected before or after it; calling `force` on a state carrying it completes the documented form and makes the command spawnable."
+    )]
+    #[cfg_attr(
+        all(feature = "lt2024_1", not(feature = "lt2015_2")),
+        doc = "`-f` is required by the `-Fs` and `--serverid=X` options, but it may be selected before or after them; calling `force` on a state carrying those options completes the documented form and makes the command spawnable."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2024_1"),
+        doc = "`-f` is required by the `-Fs`, `-Fd`, and `--serverid=X` options, but it may be selected before or after them; calling `force` on a state carrying those options completes the documented form and makes the command spawnable."
+    )]
     pub fn force(self) -> Client<DeleteMode<I, S>, ForceSet, Unselected, Unselected> {
         Client {
             bin: self.bin,
@@ -897,6 +1057,7 @@ where
     }
 }
 
+#[cfg(not(feature = "lt2022_1"))]
 impl<V> Client<SwitchViewMode<V>, Unselected, Unselected, Unselected> {
     /// # Description
     ///
@@ -987,6 +1148,7 @@ impl<W> Client<StdoutMode, Unselected, Unselected, W> {
 
 // `-T` is valid in the GeneralMode and StdoutMode states.
 
+#[cfg(not(feature = "lt2016_2"))]
 impl<F, T> Client<GeneralMode, F, T, Unselected> {
     /// # Description
     ///
@@ -1009,6 +1171,7 @@ impl<F, T> Client<GeneralMode, F, T, Unselected> {
     }
 }
 
+#[cfg(not(feature = "lt2016_2"))]
 impl<T> Client<StdoutMode, Unselected, T, Unselected> {
     /// # Description
     ///
@@ -1051,6 +1214,7 @@ impl<M, F, W> Client<M, F, TemplateSet, W> {
     }
 }
 
+#[cfg(not(feature = "lt2016_2"))]
 impl<M, F, T> Client<M, F, T, TypeSet> {
     /// Get the client workspace type set with `-T`.
     pub fn get_workspace_type(&self) -> WorkSpaceType {
@@ -1117,15 +1281,27 @@ impl<F> Client<GeneralMode, F, Unselected, Unselected> {
             workspace_type: self.workspace_type,
         }
     }
+}
 
+// The `-f` states accepted on the switch-view form are tracked by
+// [`SwitchViewForceCompatible`].
+
+impl<F> Client<GeneralMode, F, Unselected, Unselected>
+where
+    F: SwitchViewForceCompatible,
+{
     /// # Description
     ///
     /// -s -S stream
     ///
     /// Switch the workspace view to the specified stream.
     ///
-    /// This transitions into the [`SwitchViewMode`] state, carrying the
-    /// `-f` option.
+    /// This transitions into the [`SwitchViewMode`] state.
+    #[cfg_attr(
+        not(feature = "lt2022_1"),
+        doc = "",
+        doc = "The `-f` option may be selected before this transition, or added afterwards with [`Client::force`]."
+    )]
     pub fn switch_view_stream(
         self,
         stream: impl Into<String>,
@@ -1151,8 +1327,12 @@ impl<F> Client<GeneralMode, F, Unselected, Unselected> {
     /// Switch the workspace view to the view defined for another
     /// workspace.
     ///
-    /// This transitions into the [`SwitchViewMode`] state, carrying the
-    /// `-f` option.
+    /// This transitions into the [`SwitchViewMode`] state.
+    #[cfg_attr(
+        not(feature = "lt2022_1"),
+        doc = "",
+        doc = "The `-f` option may be selected before this transition, or added afterwards with [`Client::force`]."
+    )]
     pub fn switch_view_template(
         self,
         template: impl Into<String>,
@@ -1172,7 +1352,10 @@ impl<F> Client<GeneralMode, F, Unselected, Unselected> {
     }
 }
 
-impl<F> Client<GeneralMode, F, TemplateSet, Unselected> {
+impl<F> Client<GeneralMode, F, TemplateSet, Unselected>
+where
+    F: SwitchViewForceCompatible,
+{
     /// # Description
     ///
     /// -s -t template
@@ -1180,8 +1363,12 @@ impl<F> Client<GeneralMode, F, TemplateSet, Unselected> {
     /// Switch the workspace view to the view defined for the template
     /// workspace already selected with [`Client::template`].
     ///
-    /// This transitions into the [`SwitchViewMode`] state, carrying the
-    /// `-f` option.
+    /// This transitions into the [`SwitchViewMode`] state.
+    #[cfg_attr(
+        not(feature = "lt2022_1"),
+        doc = "",
+        doc = "The `-f` option may be selected before this transition, or added afterwards with [`Client::force`]."
+    )]
     pub fn switch_view(self) -> Client<SwitchViewMode<TemplateSwitch>, F, Unselected, Unselected> {
         Client {
             bin: self.bin,
@@ -1270,6 +1457,7 @@ where
     ///
     /// Selecting this option implies `-d`; `-f` may be selected before or
     /// after it. The resulting command is spawnable only once `-f` is set.
+    #[cfg(not(feature = "lt2015_2"))]
     pub fn server_id(
         self,
         server_id: impl Into<String>,
@@ -1327,6 +1515,7 @@ where
     ///
     /// Selecting this option implies `-d`; `-f` may be selected before or
     /// after it. The resulting command is spawnable only once `-f` is set.
+    #[cfg(not(feature = "lt2024_1"))]
     pub fn delete_shelved(
         self,
     ) -> Client<DeleteMode<Unselected, ShelvedDeleted>, F, Unselected, Unselected> {
@@ -1353,6 +1542,7 @@ where
 // yet, and only in shelved states compatible with the documented form
 // `p4 client -d -f --serverid=X [-Fs] name` (never after `-Fd`).
 
+#[cfg(not(feature = "lt2015_2"))]
 impl<S, F> Client<DeleteMode<Unselected, S>, F, Unselected, Unselected>
 where
     S: ServerIdCompatible,
@@ -1393,6 +1583,7 @@ where
 
 // The `--serverid=X` value is always present in this state.
 
+#[cfg(not(feature = "lt2015_2"))]
 impl<S, F> Client<DeleteMode<ServerIdSet, S>, F, Unselected, Unselected>
 where
     S: ServerIdCompatible,
@@ -1469,6 +1660,7 @@ where
 // The `-Fd` transition: only available without `--serverid=X` and without
 // a previously selected shelved handling.
 
+#[cfg(not(feature = "lt2024_1"))]
 impl<F> Client<DeleteMode<Unselected, Unselected>, F, Unselected, Unselected>
 where
     F: ExclusiveOption,
@@ -1549,9 +1741,12 @@ impl Client<StreamMode<Unselected>, Unselected, Unselected, Unselected> {
     /// [`Client::stream`], changing the stream associated with the
     /// workspace.
     ///
-    /// This transitions into the [`SwitchViewMode`] state. The
-    /// intermediate `-S stream` form does not accept `-f`; the optional
-    /// `-f` can be added after this transition with [`Client::force`].
+    /// This transitions into the [`SwitchViewMode`] state; the
+    /// intermediate `-S stream` form does not accept `-f`.
+    #[cfg_attr(
+        not(feature = "lt2022_1"),
+        doc = "The optional `-f` can be added after this transition with [`Client::force`]."
+    )]
     pub fn switch_view(
         self,
     ) -> Client<SwitchViewMode<StreamSwitch>, Unselected, Unselected, Unselected> {
@@ -1698,6 +1893,27 @@ mod tests {
     }
 
     #[test]
+    fn general_mode_with_force_and_template() {
+        let client = Client::new("p4", GlobalOpts::new()).force().template("tpl");
+
+        assert_eq!(
+            args_of(&client.setup_command("p4")),
+            ["client", "-f", "-t", "tpl"]
+        );
+        assert_eq!(client.get_template(), "tpl");
+
+        // The `set_*` variants mutate an already-selected option.
+        let mut client = Client::new("p4", GlobalOpts::new()).template("tmp");
+        client.set_template("tpl");
+        assert_eq!(client.get_template(), "tpl");
+        assert_eq!(
+            args_of(&client.setup_command("p4")),
+            ["client", "-t", "tpl"]
+        );
+    }
+
+    #[cfg(not(feature = "lt2016_2"))]
+    #[test]
     fn general_mode_with_all_options() {
         let client = Client::new("p4", GlobalOpts::new())
             .force()
@@ -1712,13 +1928,16 @@ mod tests {
         assert_eq!(client.get_workspace_type(), WorkSpaceType::Readonly);
     }
 
+    #[cfg(not(feature = "lt2016_2"))]
     #[test]
     fn workspace_type_values() {
         for (ty, s) in [
             (WorkSpaceType::Writable, "writeable"),
             (WorkSpaceType::Readonly, "readonly"),
             (WorkSpaceType::Partitioned, "partitioned"),
+            #[cfg(not(feature = "lt2024_1"))]
             (WorkSpaceType::PartitionedJnl, "partitioned-jnl"),
+            #[cfg(not(feature = "lt2024_1"))]
             (WorkSpaceType::Graph, "graph"),
         ] {
             let client = Client::new("p4", GlobalOpts::new()).workspace_type(ty);
@@ -1727,15 +1946,28 @@ mod tests {
     }
 
     #[test]
-    fn stdout_mode_carries_template_and_type() {
+    fn stdout_mode_carries_template() {
         let client = Client::new("p4", GlobalOpts::new())
             .template("tpl")
-            .workspace_type(WorkSpaceType::Graph)
             .stdout();
 
         assert_eq!(
             args_of(&client.setup_command("p4")),
-            ["client", "-o", "-t", "tpl", "-T", "graph"]
+            ["client", "-o", "-t", "tpl"]
+        );
+    }
+
+    #[cfg(not(feature = "lt2016_2"))]
+    #[test]
+    fn stdout_mode_carries_template_and_type() {
+        let client = Client::new("p4", GlobalOpts::new())
+            .template("tpl")
+            .workspace_type(WorkSpaceType::Partitioned)
+            .stdout();
+
+        assert_eq!(
+            args_of(&client.setup_command("p4")),
+            ["client", "-o", "-t", "tpl", "-T", "partitioned"]
         );
     }
 
@@ -1747,7 +1979,22 @@ mod tests {
     }
 
     #[test]
-    fn delete_mode_with_force_unlocks_shelved_and_server_id() {
+    fn delete_mode_with_force_and_keep_shelved() {
+        let client = Client::new("p4", GlobalOpts::new())
+            .delete()
+            .force()
+            .keep_shelved();
+
+        assert_eq!(client.get_shelved(), Some(ShelvedHandling::Keep));
+        assert_eq!(
+            args_of(&client.setup_command("p4")),
+            ["client", "-d", "-f", "-Fs"]
+        );
+    }
+
+    #[cfg(not(feature = "lt2015_2"))]
+    #[test]
+    fn delete_mode_with_force_and_server_id() {
         // `--serverid=X` followed by `-Fs`: the documented
         // `-d -f --serverid=X [-Fs]` form.
         let mut client = Client::new("p4", GlobalOpts::new())
@@ -1781,7 +2028,11 @@ mod tests {
             args_of(&client.setup_command("p4")),
             ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"]
         );
+    }
 
+    #[cfg(not(feature = "lt2024_1"))]
+    #[test]
+    fn delete_mode_with_force_and_delete_shelved() {
         // `-Fd` without `--serverid=X`: the `-d -f -Fd` form.
         let client = Client::new("p4", GlobalOpts::new())
             .delete()
@@ -1803,7 +2054,19 @@ mod tests {
     }
 
     #[test]
-    fn force_unlocks_one_shot_delete_transitions() {
+    fn force_unlocks_keep_shelved_one_shot() {
+        let client = Client::new("p4", GlobalOpts::new()).force().keep_shelved();
+
+        assert_eq!(client.get_shelved(), Some(ShelvedHandling::Keep));
+        assert_eq!(
+            args_of(&client.setup_command("p4")),
+            ["client", "-d", "-f", "-Fs"]
+        );
+    }
+
+    #[cfg(not(feature = "lt2015_2"))]
+    #[test]
+    fn force_unlocks_server_id_one_shot() {
         let client = Client::new("p4", GlobalOpts::new())
             .force()
             .server_id("edge.1667")
@@ -1815,7 +2078,11 @@ mod tests {
             args_of(&client.setup_command("p4")),
             ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"]
         );
+    }
 
+    #[cfg(not(feature = "lt2024_1"))]
+    #[test]
+    fn force_unlocks_delete_shelved_one_shot() {
         let client = Client::new("p4", GlobalOpts::new())
             .force()
             .delete_shelved();
@@ -1824,14 +2091,6 @@ mod tests {
         assert_eq!(
             args_of(&client.setup_command("p4")),
             ["client", "-d", "-f", "-Fd"]
-        );
-
-        let client = Client::new("p4", GlobalOpts::new()).force().keep_shelved();
-
-        assert_eq!(client.get_shelved(), Some(ShelvedHandling::Keep));
-        assert_eq!(
-            args_of(&client.setup_command("p4")),
-            ["client", "-d", "-f", "-Fs"]
         );
     }
 
@@ -1861,6 +2120,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "lt2022_1"))]
     #[test]
     fn switch_view_stream_carries_force() {
         let client = Client::new("p4", GlobalOpts::new())
@@ -1888,6 +2148,21 @@ mod tests {
         );
         assert_eq!(client.get_stream(), "//stream/dev");
 
+        // The stream value remains editable on the intermediate form.
+        let client = Client::new("p4", GlobalOpts::new())
+            .stream("old")
+            .stream("//stream/dev")
+            .switch_view();
+
+        assert_eq!(
+            args_of(&client.setup_command("p4")),
+            ["client", "-s", "-S", "//stream/dev"]
+        );
+    }
+
+    #[cfg(not(feature = "lt2022_1"))]
+    #[test]
+    fn switch_view_reuses_stream_then_force() {
         // The intermediate `-S` form rejects `-f`; it is added after the
         // switch.
         let client = Client::new("p4", GlobalOpts::new())
@@ -1898,17 +2173,6 @@ mod tests {
         assert_eq!(
             args_of(&client.setup_command("p4")),
             ["client", "-s", "-f", "-S", "//stream/dev"]
-        );
-
-        // The stream value remains editable on the intermediate form.
-        let client = Client::new("p4", GlobalOpts::new())
-            .stream("old")
-            .stream("//stream/dev")
-            .switch_view();
-
-        assert_eq!(
-            args_of(&client.setup_command("p4")),
-            ["client", "-s", "-S", "//stream/dev"]
         );
     }
 
