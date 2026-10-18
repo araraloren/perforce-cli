@@ -16,6 +16,7 @@ use crate::cmd::Change;
 use crate::cmd::Changes;
 use crate::cmd::Clean;
 use crate::cmd::Client;
+use crate::cmd::Clients;
 use crate::cmd::Describe;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
@@ -177,6 +178,25 @@ impl P4Cli {
     /// another syntax form.
     pub fn client(&self) -> Client {
         Client::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// List all client workspaces currently known to the system.
+    ///
+    /// The returned builder starts with no option selected and spawns the
+    /// bare `p4 clients` report as is; set any regular option or filter to
+    /// enter the [`RegularMode`](crate::cmd::clients::RegularMode) state, or
+    /// call [`Clients::unloaded`](crate::cmd::clients::Clients::unloaded)
+    /// (`-U`) to list only unloaded client workspaces.
+    pub fn clients(&self) -> Clients {
+        Clients::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// List all client workspaces currently known to the system.
+    ///
+    /// This is an alias for [`Self::clients`], corresponding to the `p4
+    /// workspaces` command.
+    pub fn workspaces(&self) -> Clients {
+        Clients::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a client workspace specification and its view.

@@ -392,6 +392,7 @@ impl<F> Branches<F, Unselected> {
     ///
     /// Transitions this command to the [`User`] state.
     pub fn user(self, v: impl Into<String>, case_insensitive: bool) -> Branches<F, User> {
+        let _ = case_insensitive;
         Branches {
             bin: self.bin,
             global_opts: self.global_opts,
