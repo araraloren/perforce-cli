@@ -18,7 +18,7 @@ fn main() -> std::io::Result<()> {
     // Chain builders: print all revisions of the first two matching files to
     // a local output file, without the depot header line.
     let mut print = p4
-        .print()
+        .cmd_print()
         .all_revisions(true)
         .quiet_mode(true)
         .limit(2)
@@ -31,7 +31,7 @@ fn main() -> std::io::Result<()> {
 
     // Or stream the contents directly to the terminal with `spawn_with`.
     let mut child = p4
-        .print()
+        .cmd_print()
         .spawn_with((&[OsStr::new("//depot/project/README.md")],))?;
     child.wait()?;
 

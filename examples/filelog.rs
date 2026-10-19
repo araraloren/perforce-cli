@@ -28,7 +28,7 @@ fn main() -> std::io::Result<()> {
     // history across branches (`-i`), display the time as well as the date
     // (`-t`), and list only the first 10 changes per file (`-m 10`).
     let mut filelog = p4
-        .filelog()
+        .cmd_filelog()
         .follow_branches(true)
         .include_time(true)
         .limit(10);
@@ -41,7 +41,7 @@ fn main() -> std::io::Result<()> {
     // `FullDescription` state (`-l`), printing the full text of each
     // changelist description. A revision range limits the listed revisions,
     // e.g. changelists 100 through 120.
-    let mut long_log = p4.filelog().full_description();
+    let mut long_log = p4.cmd_filelog().full_description();
 
     let output = long_log.output(&["//depot/project/main.c@100,@120"])?;
     println!("{}", String::from_utf8_lossy(&output.stdout));
@@ -51,7 +51,7 @@ fn main() -> std::io::Result<()> {
     // content of promoted task streams. Only revisions submitted at
     // changelist 4321 are displayed (`-c 4321`).
     let mut history = p4
-        .filelog()
+        .cmd_filelog()
         .content_history()
         .skip_promoted_tasks(true)
         .changelist("4321");

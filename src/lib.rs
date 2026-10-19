@@ -99,33 +99,33 @@ impl P4Cli {
     }
 
     /// Open files in a client workspace for addition to the depot.
-    pub fn add(&self) -> Add {
+    pub fn cmd_add(&self) -> Add {
         Add::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Perform administrative operations on the server.
-    pub fn admin(&self) -> AdminEntry {
+    pub fn cmd_admin(&self) -> AdminEntry {
         AdminEntry::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Display command aliases that are currently defined in a .p4aliases file.
     #[cfg(not(feature = "lt2016_1"))]
-    pub fn aliases(&self) -> Aliases {
+    pub fn cmd_aliases(&self) -> Aliases {
         Aliases::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Print file lines along with their revisions.
-    pub fn annotate(&self) -> Annotate {
+    pub fn cmd_annotate(&self) -> Annotate {
         Annotate::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Archive obsolete revisions to an archive depot.
-    pub fn archive(&self) -> Archive {
+    pub fn cmd_archive(&self) -> Archive {
         Archive::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Set per-revision attributes on file revisions.
-    pub fn attribute(&self) -> Attribute {
+    pub fn cmd_attribute(&self) -> Attribute {
         Attribute::new(self.bin.clone(), self.global_opts.clone())
     }
 
@@ -135,17 +135,17 @@ impl P4Cli {
     /// [`BackGroundTask::execute`] (`-e`) or [`BackGroundTask::trigger`]
     /// (`-t`) to select the required target before spawning.
     #[cfg(not(feature = "lt2017_2"))]
-    pub fn bgtask(&self) -> BackGroundTask {
+    pub fn cmd_bgtask(&self) -> BackGroundTask {
         BackGroundTask::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a branch mapping and its view.
-    pub fn branch(&self) -> Branch {
+    pub fn cmd_branch(&self) -> Branch {
         Branch::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// List existing branch mappings.
-    pub fn branches(&self) -> Branches {
+    pub fn cmd_branches(&self) -> Branches {
         Branches::new(self.bin.clone(), self.global_opts.clone())
     }
 
@@ -156,7 +156,7 @@ impl P4Cli {
     /// (`-f`), [`CachePurge::revision_count`] (`-m`), or
     /// [`CachePurge::size`] (`-s`) to select the required goal before
     /// spawning.
-    pub fn cachepurge(&self) -> CachePurge {
+    pub fn cmd_cachepurge(&self) -> CachePurge {
         CachePurge::new(self.bin.clone(), self.global_opts.clone())
     }
 
@@ -167,7 +167,7 @@ impl P4Cli {
     /// used; pass file arguments to
     /// [`ParameterizedSpawn::spawn_with`](crate::spawn::ParameterizedSpawn::spawn_with)
     /// to limit the scope.
-    pub fn clean(&self) -> Clean {
+    pub fn cmd_clean(&self) -> Clean {
         Clean::new(self.bin.clone(), self.global_opts.clone())
     }
 
@@ -178,7 +178,7 @@ impl P4Cli {
     /// transition methods such as [`Client::delete`](crate::cmd::client::Client::delete)
     /// or [`Client::stdout`](crate::cmd::client::Client::stdout) to select
     /// another syntax form.
-    pub fn client(&self) -> Client {
+    pub fn cmd_client(&self) -> Client {
         Client::new(self.bin.clone(), self.global_opts.clone())
     }
 
@@ -189,15 +189,15 @@ impl P4Cli {
     /// enter the [`RegularMode`](crate::cmd::clients::RegularMode) state, or
     /// call [`Clients::unloaded`](crate::cmd::clients::Clients::unloaded)
     /// (`-U`) to list only unloaded client workspaces.
-    pub fn clients(&self) -> Clients {
+    pub fn cmd_clients(&self) -> Clients {
         Clients::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// List all client workspaces currently known to the system.
     ///
-    /// This is an alias for [`Self::clients`], corresponding to the `p4
+    /// This is an alias for [`Self::cmd_clients`], corresponding to the `p4
     /// workspaces` command.
-    pub fn workspaces(&self) -> Clients {
+    pub fn cmd_workspaces(&self) -> Clients {
         Clients::new(self.bin.clone(), self.global_opts.clone())
     }
 
@@ -209,86 +209,82 @@ impl P4Cli {
     /// [`Clone::remote`](crate::cmd::clone::Clone::remote) (`-r`)
     /// or [`Clone::file`](crate::cmd::clone::Clone::file) (`-f`).
     /// Unlike most commands, `p4 clone` does not accept the global options.
-    ///
-    /// This method is named `clone_command` rather than `clone` so that it
-    /// does not collide with the [`Clone`](std::clone::Clone) implementation
-    /// derived for [`P4Cli`].
     #[cfg(not(feature = "lt2015_1"))]
-    pub fn clone_command(&self) -> Clone {
+    pub fn cmd_clone(&self) -> Clone {
         Clone::new(self.bin.clone())
     }
 
     /// Create or edit a client workspace specification and its view.
     ///
-    /// This is an alias for [`Self::client`], corresponding to the `p4
+    /// This is an alias for [`Self::cmd_client`], corresponding to the `p4
     /// workspace` command.
-    pub fn workspace(&self) -> Client {
+    pub fn cmd_workspace(&self) -> Client {
         Client::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a changelist specification.
-    pub fn change(&self) -> Change {
+    pub fn cmd_change(&self) -> Change {
         Change::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a changelist specification.
     ///
-    /// This is an alias for [`Self::change`], corresponding to the `p4
+    /// This is an alias for [`Self::cmd_change`], corresponding to the `p4
     /// changelist` command.
-    pub fn changelist(&self) -> Change {
+    pub fn cmd_changelist(&self) -> Change {
         Change::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// List submitted and pending changelists.
-    pub fn changes(&self) -> Changes {
+    pub fn cmd_changes(&self) -> Changes {
         Changes::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// List submitted and pending changelists.
     ///
-    /// This is an alias for [`Self::changes`], corresponding to the `p4
+    /// This is an alias for [`Self::cmd_changes`], corresponding to the `p4
     /// changelists` command.
-    pub fn changelists(&self) -> Changes {
+    pub fn cmd_changelists(&self) -> Changes {
         Changes::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Display the details of one or more changelists.
-    pub fn describe(&self) -> Describe {
+    pub fn cmd_describe(&self) -> Describe {
         Describe::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Diff workspace content against depot content, or diff stream specs.
-    pub fn diff(&self) -> Diff {
+    pub fn cmd_diff(&self) -> Diff {
         Diff::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Compare the content at two depot paths, or compare two stream specs.
-    pub fn diff2(&self) -> Diff2 {
+    pub fn cmd_diff2(&self) -> Diff2 {
         Diff2::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Open files in a client workspace for edit.
-    pub fn edit(&self) -> Edit {
+    pub fn cmd_edit(&self) -> Edit {
         Edit::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Print detailed information about the revisions of files.
-    pub fn filelog(&self) -> FileLog {
+    pub fn cmd_filelog(&self) -> FileLog {
         FileLog::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Print the contents of depot file revisions.
-    pub fn print(&self) -> Print {
+    pub fn cmd_print(&self) -> Print {
         Print::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Update the client workspace to reflect the contents of the depot.
-    pub fn sync(&self) -> Sync {
+    pub fn cmd_sync(&self) -> Sync {
         Sync::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Show where a particular file is located, as determined by the client view.
-    pub fn r#where(&self) -> Where {
+    pub fn cmd_where(&self) -> Where {
         Where::new(self.bin.clone(), self.global_opts.clone())
     }
 }

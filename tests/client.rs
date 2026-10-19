@@ -58,7 +58,7 @@ fn expect_args(cmd: &impl SubCommand, expected: &[&str]) {
 ///
 /// ```ignore
 /// expect_chain!(["client", "-d", "-f", "-Fs"],
-///               p4.client().delete().force().keep_shelved());
+///               p4.cmd_client().delete().force().keep_shelved());
 /// ```
 macro_rules! expect_chain {
     ([$($e:literal),* $(,)?], $($chain:tt)*) => {{
@@ -132,16 +132,16 @@ fn form_1_general() {
     let p4 = P4Cli::default();
 
     // Every subset of {`-f`, `-t`}.
-    expect_chain!(["client"], p4.client());
-    expect_chain!(["client", "-f"], p4.client().force());
-    expect_chain!(["client", "-t", "tpl"], p4.client().template("tpl"));
+    expect_chain!(["client"], p4.cmd_client());
+    expect_chain!(["client", "-f"], p4.cmd_client().force());
+    expect_chain!(["client", "-t", "tpl"], p4.cmd_client().template("tpl"));
     expect_chain!(
         ["client", "-f", "-t", "tpl"],
-        p4.client().force().template("tpl")
+        p4.cmd_client().force().template("tpl")
     );
 
     // The `set_*` builder variants mutate an already-selected option.
-    let mut cmd = p4.client().template("tmp");
+    let mut cmd = p4.cmd_client().template("tmp");
     cmd.set_template("tpl");
     assert_eq!(cmd.get_template(), "tpl");
     expect_args(&cmd, &["client", "-t", "tpl"]);
@@ -153,45 +153,45 @@ fn form_1_general() {
         // Every remaining subset/permutation of {`-f`, `-t`, `-T`}.
         expect_chain!(
             ["client", "-T", "partitioned"],
-            p4.client().workspace_type(g)
+            p4.cmd_client().workspace_type(g)
         );
         expect_chain!(
             ["client", "-f", "-T", "partitioned"],
-            p4.client().force().workspace_type(g)
+            p4.cmd_client().force().workspace_type(g)
         );
         expect_chain!(
             ["client", "-t", "tpl", "-T", "partitioned"],
-            p4.client().template("tpl").workspace_type(g)
+            p4.cmd_client().template("tpl").workspace_type(g)
         );
         expect_chain!(
             ["client", "-t", "tpl", "-T", "partitioned"],
-            p4.client().workspace_type(g).template("tpl")
+            p4.cmd_client().workspace_type(g).template("tpl")
         );
 
         // Every permutation (3!) of the full option set converges identically.
         expect_chain!(
             ["client", "-f", "-t", "tpl", "-T", "partitioned"],
-            p4.client().force().template("tpl").workspace_type(g)
+            p4.cmd_client().force().template("tpl").workspace_type(g)
         );
         expect_chain!(
             ["client", "-f", "-t", "tpl", "-T", "partitioned"],
-            p4.client().force().workspace_type(g).template("tpl")
+            p4.cmd_client().force().workspace_type(g).template("tpl")
         );
         expect_chain!(
             ["client", "-f", "-t", "tpl", "-T", "partitioned"],
-            p4.client().template("tpl").force().workspace_type(g)
+            p4.cmd_client().template("tpl").force().workspace_type(g)
         );
         expect_chain!(
             ["client", "-f", "-t", "tpl", "-T", "partitioned"],
-            p4.client().template("tpl").workspace_type(g).force()
+            p4.cmd_client().template("tpl").workspace_type(g).force()
         );
         expect_chain!(
             ["client", "-f", "-t", "tpl", "-T", "partitioned"],
-            p4.client().workspace_type(g).force().template("tpl")
+            p4.cmd_client().workspace_type(g).force().template("tpl")
         );
         expect_chain!(
             ["client", "-f", "-t", "tpl", "-T", "partitioned"],
-            p4.client().workspace_type(g).template("tpl").force()
+            p4.cmd_client().workspace_type(g).template("tpl").force()
         );
 
         // Every documented `-T type` value.
@@ -204,12 +204,15 @@ fn form_1_general() {
             #[cfg(not(feature = "lt2024_1"))]
             (WorkSpaceType::Graph, "graph"),
         ] {
-            expect_args(&p4.client().workspace_type(ty), &["client", "-T", value]);
+            expect_args(
+                &p4.cmd_client().workspace_type(ty),
+                &["client", "-T", value],
+            );
         }
 
         // The `set_*` builder variants mutate an already-selected option.
         let mut cmd = p4
-            .client()
+            .cmd_client()
             .template("tmp")
             .workspace_type(WorkSpaceType::Readonly);
         cmd.set_template("tpl").set_workspace_type(g);
@@ -242,32 +245,32 @@ fn form_1_general() {
 fn form_2_delete() {
     let p4 = P4Cli::default();
 
-    expect_chain!(["client", "-d"], p4.client().delete());
+    expect_chain!(["client", "-d"], p4.cmd_client().delete());
 
     // `-d -f`: either order of `-d` and `-f`.
-    expect_chain!(["client", "-d", "-f"], p4.client().delete().force());
-    expect_chain!(["client", "-d", "-f"], p4.client().force().delete());
+    expect_chain!(["client", "-d", "-f"], p4.cmd_client().delete().force());
+    expect_chain!(["client", "-d", "-f"], p4.cmd_client().force().delete());
 
     // `-d -f -Fs`: all five legal selection orders.
     expect_chain!(
         ["client", "-d", "-f", "-Fs"],
-        p4.client().delete().force().keep_shelved()
+        p4.cmd_client().delete().force().keep_shelved()
     );
     expect_chain!(
         ["client", "-d", "-f", "-Fs"],
-        p4.client().force().delete().keep_shelved()
+        p4.cmd_client().force().delete().keep_shelved()
     );
     expect_chain!(
         ["client", "-d", "-f", "-Fs"],
-        p4.client().force().keep_shelved()
+        p4.cmd_client().force().keep_shelved()
     );
     expect_chain!(
         ["client", "-d", "-f", "-Fs"],
-        p4.client().keep_shelved().force()
+        p4.cmd_client().keep_shelved().force()
     );
     expect_chain!(
         ["client", "-d", "-f", "-Fs"],
-        p4.client().delete().keep_shelved().force()
+        p4.cmd_client().delete().keep_shelved().force()
     );
 
     #[cfg(not(feature = "lt2024_1"))]
@@ -275,27 +278,27 @@ fn form_2_delete() {
         // `-d -f -Fd`: all five legal selection orders.
         expect_chain!(
             ["client", "-d", "-f", "-Fd"],
-            p4.client().delete().force().delete_shelved()
+            p4.cmd_client().delete().force().delete_shelved()
         );
         expect_chain!(
             ["client", "-d", "-f", "-Fd"],
-            p4.client().force().delete().delete_shelved()
+            p4.cmd_client().force().delete().delete_shelved()
         );
         expect_chain!(
             ["client", "-d", "-f", "-Fd"],
-            p4.client().force().delete_shelved()
+            p4.cmd_client().force().delete_shelved()
         );
         expect_chain!(
             ["client", "-d", "-f", "-Fd"],
-            p4.client().delete_shelved().force()
+            p4.cmd_client().delete_shelved().force()
         );
         expect_chain!(
             ["client", "-d", "-f", "-Fd"],
-            p4.client().delete().delete_shelved().force()
+            p4.cmd_client().delete().delete_shelved().force()
         );
 
         // The getter reflects the terminal selection.
-        let cmd = p4.client().delete_shelved().force();
+        let cmd = p4.cmd_client().delete_shelved().force();
         assert_eq!(cmd.get_shelved(), Some(ShelvedHandling::Delete));
 
         // `name` is mandatory and is the trailing operand.
@@ -307,7 +310,7 @@ fn form_2_delete() {
     }
 
     // The getter reflects the terminal selection.
-    let cmd = p4.client().keep_shelved().force();
+    let cmd = p4.cmd_client().keep_shelved().force();
     assert_eq!(cmd.get_shelved(), Some(ShelvedHandling::Keep));
 
     // `name` is mandatory and is the trailing operand for every variant.
@@ -333,18 +336,18 @@ fn form_2_delete() {
 fn form_3_stdout() {
     let p4 = P4Cli::default();
 
-    expect_chain!(["client", "-o"], p4.client().stdout());
+    expect_chain!(["client", "-o"], p4.cmd_client().stdout());
 
     // `-t`, selected before `.stdout()`.
     expect_chain!(
         ["client", "-o", "-t", "tpl"],
-        p4.client().template("tpl").stdout()
+        p4.cmd_client().template("tpl").stdout()
     );
 
     // `-t`, selected after `.stdout()`.
     expect_chain!(
         ["client", "-o", "-t", "tpl"],
-        p4.client().stdout().template("tpl")
+        p4.cmd_client().stdout().template("tpl")
     );
 
     #[cfg(not(feature = "lt2016_2"))]
@@ -354,43 +357,43 @@ fn form_3_stdout() {
         // `-T`, selected before `.stdout()`.
         expect_chain!(
             ["client", "-o", "-T", "partitioned"],
-            p4.client().workspace_type(y).stdout()
+            p4.cmd_client().workspace_type(y).stdout()
         );
 
         // `-t` and `-T`, both selected before `.stdout()`.
         expect_chain!(
             ["client", "-o", "-t", "tpl", "-T", "partitioned"],
-            p4.client().template("tpl").workspace_type(y).stdout()
+            p4.cmd_client().template("tpl").workspace_type(y).stdout()
         );
         expect_chain!(
             ["client", "-o", "-t", "tpl", "-T", "partitioned"],
-            p4.client().workspace_type(y).template("tpl").stdout()
+            p4.cmd_client().workspace_type(y).template("tpl").stdout()
         );
 
         // `-T`, selected after `.stdout()`.
         expect_chain!(
             ["client", "-o", "-T", "partitioned"],
-            p4.client().stdout().workspace_type(y)
+            p4.cmd_client().stdout().workspace_type(y)
         );
 
         // `-t` and `-T`, both selected after `.stdout()`.
         expect_chain!(
             ["client", "-o", "-t", "tpl", "-T", "partitioned"],
-            p4.client().stdout().template("tpl").workspace_type(y)
+            p4.cmd_client().stdout().template("tpl").workspace_type(y)
         );
         expect_chain!(
             ["client", "-o", "-t", "tpl", "-T", "partitioned"],
-            p4.client().stdout().workspace_type(y).template("tpl")
+            p4.cmd_client().stdout().workspace_type(y).template("tpl")
         );
 
         // One option before `.stdout()` and one after it, in both orders.
         expect_chain!(
             ["client", "-o", "-t", "tpl", "-T", "partitioned"],
-            p4.client().template("tpl").stdout().workspace_type(y)
+            p4.cmd_client().template("tpl").stdout().workspace_type(y)
         );
         expect_chain!(
             ["client", "-o", "-t", "tpl", "-T", "partitioned"],
-            p4.client().workspace_type(y).stdout().template("tpl")
+            p4.cmd_client().workspace_type(y).stdout().template("tpl")
         );
 
         // Optional `name` with both options.
@@ -418,28 +421,31 @@ fn form_3_stdout() {
 fn form_4_stream() {
     let p4 = P4Cli::default();
 
-    let cmd = p4.client().stream("//stream/main");
+    let cmd = p4.cmd_client().stream("//stream/main");
     assert_eq!(cmd.get_stream(), "//stream/main");
     expect_args(&cmd, &["client", "-S", "//stream/main"]);
 
     // `set_stream` mutates the selected stream.
-    let mut cmd = p4.client().stream("old");
+    let mut cmd = p4.cmd_client().stream("old");
     cmd.set_stream("//stream/dev");
     expect_args(&cmd, &["client", "-S", "//stream/dev"]);
 
     expect_chain!(
         ["client", "-S", "//stream/main", "-o"],
-        p4.client().stream("//stream/main").stdout()
+        p4.cmd_client().stream("//stream/main").stdout()
     );
 
-    let mut cmd = p4.client().stream("//stream/main").stdout();
+    let mut cmd = p4.cmd_client().stream("//stream/main").stdout();
     assert_eq!(cmd.get_change(), None);
     cmd.set_change("4321");
     assert_eq!(cmd.get_change(), Some("4321"));
     expect_args(&cmd, &["client", "-S", "//stream/main", "-c", "4321", "-o"]);
     expect_chain!(
         ["client", "-S", "//stream/main", "-c", "4321", "-o"],
-        p4.client().stream("//stream/main").stdout().change("4321")
+        p4.cmd_client()
+            .stream("//stream/main")
+            .stdout()
+            .change("4321")
     );
 
     // Optional `name` for each of the three variants.
@@ -487,11 +493,11 @@ fn form_5_switch_stream() {
 
     // --- Path 1: direct `switch_view_stream`, no `-f` ---
 
-    let cmd = p4.client().switch_view_stream("//stream/dev");
+    let cmd = p4.cmd_client().switch_view_stream("//stream/dev");
     assert_eq!(cmd.get_stream(), "//stream/dev");
     expect_args(&cmd, &["client", "-s", "-S", "//stream/dev"]);
 
-    let mut cmd = p4.client().switch_view_stream("old");
+    let mut cmd = p4.cmd_client().switch_view_stream("old");
     cmd.set_stream("//stream/dev");
     expect_args(&cmd, &["client", "-s", "-S", "//stream/dev"]);
 
@@ -500,29 +506,29 @@ fn form_5_switch_stream() {
         // `-f` before or after the switch transition, same command line.
         expect_chain!(
             ["client", "-s", "-f", "-S", "//stream/dev"],
-            p4.client().force().switch_view_stream("//stream/dev")
+            p4.cmd_client().force().switch_view_stream("//stream/dev")
         );
         expect_chain!(
             ["client", "-s", "-f", "-S", "//stream/dev"],
-            p4.client().switch_view_stream("//stream/dev").force()
+            p4.cmd_client().switch_view_stream("//stream/dev").force()
         );
         // `set_stream` then `-f` as well.
-        let mut cmd = p4.client().switch_view_stream("old");
+        let mut cmd = p4.cmd_client().switch_view_stream("old");
         cmd.set_stream("//stream/dev");
         expect_args(&cmd.force(), &["client", "-s", "-f", "-S", "//stream/dev"]);
 
         // The value stays editable (set / builder / getter) once `-f` is set.
-        let mut cmd = p4.client().switch_view_stream("old").force();
+        let mut cmd = p4.cmd_client().switch_view_stream("old").force();
         cmd.set_stream("//stream/dev");
         expect_args(&cmd, &["client", "-s", "-f", "-S", "//stream/dev"]);
         expect_chain!(
             ["client", "-s", "-f", "-S", "//stream/dev"],
-            p4.client()
+            p4.cmd_client()
                 .switch_view_stream("old")
                 .force()
                 .stream("//stream/dev")
         );
-        let cmd = p4.client().force().switch_view_stream("//stream/dev");
+        let cmd = p4.cmd_client().force().switch_view_stream("//stream/dev");
         assert_eq!(cmd.get_stream(), "//stream/dev");
     }
 
@@ -531,17 +537,17 @@ fn form_5_switch_stream() {
     // Without `-f`: selecting `-s` injects no `-f`.
     expect_chain!(
         ["client", "-s", "-S", "//stream/dev"],
-        p4.client().stream("//stream/dev").switch_view()
+        p4.cmd_client().stream("//stream/dev").switch_view()
     );
 
     // The stream value is still changeable on the intermediate `-S`
     // form before `-s` is added.
-    let mut cmd = p4.client().stream("old");
+    let mut cmd = p4.cmd_client().stream("old");
     cmd.set_stream("//stream/dev");
     expect_args(&cmd.switch_view(), &["client", "-s", "-S", "//stream/dev"]);
     expect_chain!(
         ["client", "-s", "-S", "//stream/dev"],
-        p4.client()
+        p4.cmd_client()
             .stream("old")
             .stream("//stream/dev")
             .switch_view()
@@ -553,10 +559,10 @@ fn form_5_switch_stream() {
         // form 4 state, which rejects `-f`.
         expect_chain!(
             ["client", "-s", "-f", "-S", "//stream/dev"],
-            p4.client().stream("//stream/dev").switch_view().force()
+            p4.cmd_client().stream("//stream/dev").switch_view().force()
         );
     }
-    let cmd = p4.client().stream("//stream/dev").switch_view();
+    let cmd = p4.cmd_client().stream("//stream/dev").switch_view();
     assert_eq!(cmd.get_stream(), "//stream/dev");
 
     // --- Spawns: path 1, `name` omitted (unit), all three `-f` positions ---
@@ -645,17 +651,17 @@ fn form_5_switch_stream() {
 fn form_6_switch_template() {
     let p4 = P4Cli::default();
 
-    let cmd = p4.client().switch_view_template("tpl");
+    let cmd = p4.cmd_client().switch_view_template("tpl");
     assert_eq!(cmd.get_template(), "tpl");
     expect_args(&cmd, &["client", "-s", "-t", "tpl"]);
 
-    let mut cmd = p4.client().switch_view_template("old");
+    let mut cmd = p4.cmd_client().switch_view_template("old");
     cmd.set_template("tpl");
     expect_args(&cmd, &["client", "-s", "-t", "tpl"]);
 
     expect_chain!(
         ["client", "-s", "-t", "tpl"],
-        p4.client().template("tpl").switch_view()
+        p4.cmd_client().template("tpl").switch_view()
     );
 
     #[cfg(not(feature = "lt2022_1"))]
@@ -663,19 +669,19 @@ fn form_6_switch_template() {
         // `-f` in every legal position relative to the two entry paths.
         expect_chain!(
             ["client", "-s", "-f", "-t", "tpl"],
-            p4.client().force().switch_view_template("tpl")
+            p4.cmd_client().force().switch_view_template("tpl")
         );
         expect_chain!(
             ["client", "-s", "-f", "-t", "tpl"],
-            p4.client().switch_view_template("tpl").force()
+            p4.cmd_client().switch_view_template("tpl").force()
         );
         expect_chain!(
             ["client", "-s", "-f", "-t", "tpl"],
-            p4.client().force().template("tpl").switch_view()
+            p4.cmd_client().force().template("tpl").switch_view()
         );
         expect_chain!(
             ["client", "-s", "-f", "-t", "tpl"],
-            p4.client().template("tpl").switch_view().force()
+            p4.cmd_client().template("tpl").switch_view().force()
         );
     }
 
@@ -705,9 +711,9 @@ fn form_6_switch_template() {
 fn form_7_stdin() {
     let p4 = P4Cli::default();
 
-    expect_chain!(["client", "-i"], p4.client().stdin());
-    expect_chain!(["client", "-i", "-f"], p4.client().force().stdin());
-    expect_chain!(["client", "-i", "-f"], p4.client().stdin().force());
+    expect_chain!(["client", "-i"], p4.cmd_client().stdin());
+    expect_chain!(["client", "-i", "-f"], p4.cmd_client().force().stdin());
+    expect_chain!(["client", "-i", "-f"], p4.cmd_client().stdin().force());
 
     // Spawn uses piped stdin (`()` parameter) or an explicit `Stdio`.
     let mut cmd = echo_client().stdin();
@@ -737,27 +743,27 @@ fn form_8_server_id() {
     // `-d -f --serverid=X`: all five legal selection orders.
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667"],
-        p4.client().force().server_id(x)
+        p4.cmd_client().force().server_id(x)
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667"],
-        p4.client().server_id(x).force()
+        p4.cmd_client().server_id(x).force()
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667"],
-        p4.client().delete().force().server_id(x)
+        p4.cmd_client().delete().force().server_id(x)
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667"],
-        p4.client().force().delete().server_id(x)
+        p4.cmd_client().force().delete().server_id(x)
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667"],
-        p4.client().delete().server_id(x).force()
+        p4.cmd_client().delete().server_id(x).force()
     );
 
     // Getter/setter on the selected value, before force is added.
-    let mut cmd = p4.client().server_id(x);
+    let mut cmd = p4.cmd_client().server_id(x);
     assert_eq!(cmd.get_server_id(), x);
     assert_eq!(cmd.get_shelved(), None);
     cmd.set_server_id("edge.42");
@@ -769,57 +775,57 @@ fn form_8_server_id() {
     // {`-f`, `--serverid=X`, `-Fs`} (3! = 6) ...
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"],
-        p4.client().force().server_id(x).keep_shelved()
+        p4.cmd_client().force().server_id(x).keep_shelved()
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"],
-        p4.client().force().keep_shelved().server_id(x)
+        p4.cmd_client().force().keep_shelved().server_id(x)
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"],
-        p4.client().server_id(x).force().keep_shelved()
+        p4.cmd_client().server_id(x).force().keep_shelved()
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"],
-        p4.client().server_id(x).keep_shelved().force()
+        p4.cmd_client().server_id(x).keep_shelved().force()
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"],
-        p4.client().keep_shelved().force().server_id(x)
+        p4.cmd_client().keep_shelved().force().server_id(x)
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"],
-        p4.client().keep_shelved().server_id(x).force()
+        p4.cmd_client().keep_shelved().server_id(x).force()
     );
 
     // ... and the same six with an explicit `-d` selected first.
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"],
-        p4.client().delete().force().server_id(x).keep_shelved()
+        p4.cmd_client().delete().force().server_id(x).keep_shelved()
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"],
-        p4.client().delete().force().keep_shelved().server_id(x)
+        p4.cmd_client().delete().force().keep_shelved().server_id(x)
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"],
-        p4.client().delete().server_id(x).force().keep_shelved()
+        p4.cmd_client().delete().server_id(x).force().keep_shelved()
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"],
-        p4.client().delete().server_id(x).keep_shelved().force()
+        p4.cmd_client().delete().server_id(x).keep_shelved().force()
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"],
-        p4.client().delete().keep_shelved().force().server_id(x)
+        p4.cmd_client().delete().keep_shelved().force().server_id(x)
     );
     expect_chain!(
         ["client", "-d", "-f", "--serverid=edge.1667", "-Fs"],
-        p4.client().delete().keep_shelved().server_id(x).force()
+        p4.cmd_client().delete().keep_shelved().server_id(x).force()
     );
 
     // Getters on a final state.
-    let cmd = p4.client().keep_shelved().server_id(x).force();
+    let cmd = p4.cmd_client().keep_shelved().server_id(x).force();
     assert_eq!(cmd.get_server_id(), x);
     assert_eq!(cmd.get_shelved(), Some(ShelvedHandling::Keep));
 
@@ -850,14 +856,14 @@ fn form_8_server_id() {
 // rules. Uncomment any line to verify it is rejected.
 //
 // // `-Fd` can never be combined with `--serverid=X` (form 8 allows [-Fs] only).
-// let _ = P4Cli::default().client().server_id("x").delete_shelved();
-// let _ = P4Cli::default().client().delete_shelved().server_id("x");
-// let _ = P4Cli::default().client().force().server_id("x").delete_shelved();
-// let _ = P4Cli::default().client().force().delete_shelved().server_id("x");
+// let _ = P4Cli::default().cmd_client().server_id("x").delete_shelved();
+// let _ = P4Cli::default().cmd_client().delete_shelved().server_id("x");
+// let _ = P4Cli::default().cmd_client().force().server_id("x").delete_shelved();
+// let _ = P4Cli::default().cmd_client().force().delete_shelved().server_id("x");
 //
 // // `-Fs` and `-Fd` are mutually exclusive.
-// let _ = P4Cli::default().client().keep_shelved().delete_shelved();
-// let _ = P4Cli::default().client().delete_shelved().keep_shelved();
+// let _ = P4Cli::default().cmd_client().keep_shelved().delete_shelved();
+// let _ = P4Cli::default().cmd_client().delete_shelved().keep_shelved();
 //
 // // `-Fs` / `-Fd` / `--serverid` REQUIRE `-f`: selecting them is allowed in
 // // any order, but the resulting intermediate state cannot be spawned.
@@ -869,24 +875,24 @@ fn form_8_server_id() {
 // pending.spawn_with(("old-ws",));
 //
 // // `-o` does not accept `-f`.
-// let _ = P4Cli::default().client().force().stdout();
+// let _ = P4Cli::default().cmd_client().force().stdout();
 //
 // // `-S stream` does not accept `-f`, `-t`, or `-T`.
-// let _ = P4Cli::default().client().force().stream("//s");
-// let _ = P4Cli::default().client().template("t").stream("//s");
-// let _ = P4Cli::default().client().workspace_type(WorkSpaceType::Graph).stream("//s");
+// let _ = P4Cli::default().cmd_client().force().stream("//s");
+// let _ = P4Cli::default().cmd_client().template("t").stream("//s");
+// let _ = P4Cli::default().cmd_client().workspace_type(WorkSpaceType::Graph).stream("//s");
 //
 // // `-c change` requires `-o` on the `-S stream` form.
-// let _ = P4Cli::default().client().stream("//s").change("4321");
+// let _ = P4Cli::default().cmd_client().stream("//s").change("4321");
 //
 // // Once `-o` is selected on the `-S stream` form, the `-s` switch is no
 // // longer available (the `-S stream -o` form has no `-s` flag).
-// let _ = P4Cli::default().client().stream("//s").stdout().switch_view();
+// let _ = P4Cli::default().cmd_client().stream("//s").stdout().switch_view();
 //
 // // The two-step `-s -S stream` path cannot carry a preselected `-f`:
 // // the intermediate `-S` form rejects it, so force must follow
 // // `switch_view` (use `force().switch_view_stream(s)` for force-first).
-// let _ = P4Cli::default().client().force().stream("//s").switch_view();
+// let _ = P4Cli::default().cmd_client().force().stream("//s").switch_view();
 //
 // // `-i` takes no `name` operand: the specification comes from stdin.
 // // (`Client<StdinMode>` implements no one-argument spawn.)

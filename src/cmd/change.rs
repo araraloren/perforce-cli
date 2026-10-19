@@ -280,7 +280,7 @@ impl TakesChangeList for StdoutMode {}
 ///   `Only*` variants;
 /// - `S`: the `-s` arbitrary job status flag ([`ArbitraryJobStatus`]).
 ///
-/// Start from [`Change::new`] (or [`crate::P4Cli::change`]), enter a form
+/// Start from [`Change::new`] (or [`crate::P4Cli::cmd_change`]), enter a form
 /// with one of [`Self::delete`], [`Self::stdout`], [`Self::stdin`],
 /// [`Self::visibility`], or [`Self::user`] (or one of the
 /// [`Self::force`]/[`Self::update`]/[`Self::original`]/

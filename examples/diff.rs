@@ -43,7 +43,7 @@ fn main() -> std::io::Result<()> {
     // `limit(10)` further transitions it into `WorkspaceRegularMode` (where
     // `-soptions` is unavailable).
     let mut diff = p4
-        .diff()
+        .cmd_diff()
         .force(true)
         .diff_options(DiffOptionsBuilder::unified(None).ignore_all_whitespace())
         .limit(10);
@@ -56,7 +56,7 @@ fn main() -> std::io::Result<()> {
     // differ from the depot. `display_options` transitions `WorkspaceMode`
     // into `WorkspaceDisplayMode`, where `-m max` is unavailable.
     let mut list_changed = p4
-        .diff()
+        .cmd_diff()
         .force(true)
         .display_options(DisplayOptions::UnopenedChanged);
 
@@ -68,7 +68,7 @@ fn main() -> std::io::Result<()> {
     // into `StreamSpecMode`; the stream spec is passed to `spawn_with`.
     #[cfg(not(feature = "lt2019_1"))]
     {
-        let mut stream_diff = p4.diff().stream_spec_mode();
+        let mut stream_diff = p4.cmd_diff().stream_spec_mode();
         let mut child = stream_diff.spawn_with(("//streams/main@head",))?;
         child.wait()?;
     }

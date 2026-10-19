@@ -48,7 +48,7 @@ fn expect_args(cmd: &impl SubCommand, expected: &[&str]) {
 /// Asserts that one chained builder expression assembles `expected`.
 ///
 /// ```ignore
-/// expect_chain!(["clients", "-m", "5"], p4.clients().limit(5));
+/// expect_chain!(["clients", "-m", "5"], p4.cmd_clients().limit(5));
 /// ```
 macro_rules! expect_chain {
     ([$($e:literal),* $(,)?], $($chain:tt)*) => {{
@@ -104,8 +104,8 @@ fn echo_clients() -> Clients {
 fn form_1_bare() {
     let p4 = P4Cli::default();
 
-    expect_chain!(["clients"], p4.clients());
-    expect_chain!(["clients"], p4.workspaces());
+    expect_chain!(["clients"], p4.cmd_clients());
+    expect_chain!(["clients"], p4.cmd_workspaces());
 
     let mut cmd = echo_clients();
     assert_eq!(spawned_args_unit(&mut cmd), ["clients"]);
@@ -119,36 +119,36 @@ fn form_1_bare() {
 fn form_2_single_options() {
     let p4 = P4Cli::default();
 
-    expect_chain!(["clients", "-t"], p4.clients().display_time(true));
+    expect_chain!(["clients", "-t"], p4.cmd_clients().display_time(true));
     // `display_time(false)` enters the regular form but injects nothing.
-    expect_chain!(["clients"], p4.clients().display_time(false));
-    expect_chain!(["clients", "-m", "5"], p4.clients().limit(5));
+    expect_chain!(["clients"], p4.cmd_clients().display_time(false));
+    expect_chain!(["clients", "-m", "5"], p4.cmd_clients().limit(5));
     expect_chain!(
         ["clients", "-S", "//stream/main"],
-        p4.clients().stream("//stream/main")
+        p4.cmd_clients().stream("//stream/main")
     );
     expect_chain!(
         ["clients", "-e", "p4vBeta*"],
-        p4.clients().filter("p4vBeta*", false)
+        p4.cmd_clients().filter("p4vBeta*", false)
     );
     expect_chain!(
         ["clients", "-E", "*Us*rs"],
-        p4.clients().filter("*Us*rs", true)
+        p4.cmd_clients().filter("*Us*rs", true)
     );
-    expect_chain!(["clients", "-u", "O*hara"], p4.clients().user("O*hara"));
-    expect_chain!(["clients", "-a"], p4.clients().all());
+    expect_chain!(["clients", "-u", "O*hara"], p4.cmd_clients().user("O*hara"));
+    expect_chain!(["clients", "-a"], p4.cmd_clients().all());
     expect_chain!(
         ["clients", "-s", "edge.1667"],
-        p4.clients().server_id("edge.1667")
+        p4.cmd_clients().server_id("edge.1667")
     );
 
     #[cfg(not(feature = "lt2016_1"))]
-    expect_chain!(["clients", "--me"], p4.clients().filter_me());
+    expect_chain!(["clients", "--me"], p4.cmd_clients().filter_me());
 
     #[cfg(not(feature = "lt2024_2"))]
     expect_chain!(
         ["clients", "-u", "O*hara", "--user-case-insensitive"],
-        p4.clients().user("O*hara").case_insensitive()
+        p4.cmd_clients().user("O*hara").case_insensitive()
     );
 
     // Each single-option form spawns.
@@ -168,11 +168,11 @@ fn form_3_selection_orders() {
     // `-u` and `-E` are independent groups: both selection orders converge.
     expect_chain!(
         ["clients", "-u", "O*hara", "-E", "*Us*rs"],
-        p4.clients().user("O*hara").filter("*Us*rs", true)
+        p4.cmd_clients().user("O*hara").filter("*Us*rs", true)
     );
     expect_chain!(
         ["clients", "-u", "O*hara", "-E", "*Us*rs"],
-        p4.clients().filter("*Us*rs", true).user("O*hara")
+        p4.cmd_clients().filter("*Us*rs", true).user("O*hara")
     );
 
     // `--me` and `-e` are independent groups as well: both selection
@@ -182,11 +182,11 @@ fn form_3_selection_orders() {
     {
         expect_chain!(
             ["clients", "--me", "-e", "p4vBeta*"],
-            p4.clients().filter_me().filter("p4vBeta*", false)
+            p4.cmd_clients().filter_me().filter("p4vBeta*", false)
         );
         expect_chain!(
             ["clients", "--me", "-e", "p4vBeta*"],
-            p4.clients().filter("p4vBeta*", false).filter_me()
+            p4.cmd_clients().filter("p4vBeta*", false).filter_me()
         );
     }
 
@@ -203,7 +203,7 @@ fn form_3_selection_orders() {
                 "-s",
                 "edge.1667"
             ],
-            p4.clients()
+            p4.cmd_clients()
                 .user("O*hara")
                 .case_insensitive()
                 .server_id("edge.1667")
@@ -217,7 +217,7 @@ fn form_3_selection_orders() {
                 "-s",
                 "edge.1667"
             ],
-            p4.clients()
+            p4.cmd_clients()
                 .user("O*hara")
                 .server_id("edge.1667")
                 .case_insensitive()
@@ -231,7 +231,7 @@ fn form_3_selection_orders() {
                 "-s",
                 "edge.1667"
             ],
-            p4.clients()
+            p4.cmd_clients()
                 .server_id("edge.1667")
                 .user("O*hara")
                 .case_insensitive()
@@ -269,7 +269,7 @@ fn form_3_selection_orders() {
             "-s",
             "edge.1667",
         ],
-        p4.clients()
+        p4.cmd_clients()
             .display_time(true)
             .user("O*hara")
             .filter("*Us*rs", true)
@@ -292,7 +292,7 @@ fn form_3_selection_orders() {
             "-s",
             "edge.1667",
         ],
-        p4.clients()
+        p4.cmd_clients()
             .server_id("edge.1667")
             .stream("//stream/main")
             .limit(5)
@@ -315,7 +315,7 @@ fn form_3_selection_orders() {
             "-s",
             "edge.1667",
         ],
-        p4.clients()
+        p4.cmd_clients()
             .filter("*Us*rs", true)
             .server_id("edge.1667")
             .stream("//stream/main")
@@ -340,7 +340,7 @@ fn form_3_selection_orders() {
                 "//stream/main",
                 "-a",
             ],
-            p4.clients()
+            p4.cmd_clients()
                 .all()
                 .filter_me()
                 .display_time(true)
@@ -361,7 +361,7 @@ fn form_3_selection_orders() {
                 "//stream/main",
                 "-a",
             ],
-            p4.clients()
+            p4.cmd_clients()
                 .filter("p4vBeta*", false)
                 .filter_me()
                 .all()
@@ -372,7 +372,7 @@ fn form_3_selection_orders() {
     }
 
     // The `set_*` variants mutate an already-entered regular form.
-    let mut cmd = p4.clients().user("O*hara");
+    let mut cmd = p4.cmd_clients().user("O*hara");
     cmd.set_limit(10)
         .set_display_time(true)
         .set_stream("//stream/dev");
@@ -413,8 +413,8 @@ fn form_3_selection_orders() {
 fn form_4_unloaded() {
     let p4 = P4Cli::default();
 
-    expect_chain!(["clients", "-U"], p4.clients().unloaded());
-    expect_chain!(["clients", "-U"], p4.workspaces().unloaded());
+    expect_chain!(["clients", "-U"], p4.cmd_clients().unloaded());
+    expect_chain!(["clients", "-U"], p4.cmd_workspaces().unloaded());
 
     let mut cmd = echo_clients().unloaded();
     assert_eq!(spawned_args_unit(&mut cmd), ["clients", "-U"]);
@@ -428,24 +428,24 @@ fn form_4_unloaded() {
 //
 // // `-u` and `--me` share one syntax group (`[-u user ... | --me]`):
 // // setting either removes the other from the type state.
-// let _ = P4Cli::default().clients().user("x").filter_me();
-// let _ = P4Cli::default().clients().filter_me().user("x");
+// let _ = P4Cli::default().cmd_clients().user("x").filter_me();
+// let _ = P4Cli::default().cmd_clients().filter_me().user("x");
 //
 // // The name filter is set at most once (`filter` consumes the F state).
-// let _ = P4Cli::default().clients().filter("a", false).filter("b", true);
+// let _ = P4Cli::default().cmd_clients().filter("a", false).filter("b", true);
 //
 // // `-a` and `-s` are mutually exclusive.
-// let _ = P4Cli::default().clients().all().server_id("x");
-// let _ = P4Cli::default().clients().server_id("x").all();
+// let _ = P4Cli::default().cmd_clients().all().server_id("x");
+// let _ = P4Cli::default().cmd_clients().server_id("x").all();
 //
 // // `--user-case-insensitive` exists only on the `-u user` state.
-// let _ = P4Cli::default().clients().filter_me().case_insensitive();
-// let _ = P4Cli::default().clients().filter("a", false).case_insensitive();
+// let _ = P4Cli::default().cmd_clients().filter_me().case_insensitive();
+// let _ = P4Cli::default().cmd_clients().filter("a", false).case_insensitive();
 //
 // // `-U` is a standalone form: reachable only from the bare command, and
 // // offering no further options.
-// let _ = P4Cli::default().clients().limit(5).unloaded();
-// let _ = P4Cli::default().clients().unloaded().limit(5);
+// let _ = P4Cli::default().cmd_clients().limit(5).unloaded();
+// let _ = P4Cli::default().cmd_clients().unloaded().limit(5);
 
 fn main() -> io::Result<()> {
     form_1_bare();
