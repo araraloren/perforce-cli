@@ -17,6 +17,8 @@ use crate::cmd::Changes;
 use crate::cmd::Clean;
 use crate::cmd::Client;
 use crate::cmd::Clients;
+#[cfg(not(feature = "lt2015_1"))]
+use crate::cmd::Clone;
 use crate::cmd::Describe;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
@@ -197,6 +199,23 @@ impl P4Cli {
     /// workspaces` command.
     pub fn workspaces(&self) -> Clients {
         Clients::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Clone a new local server from a remote server.
+    ///
+    /// The returned builder cannot be assembled until a remote port is
+    /// selected with [`Clone::port`](crate::cmd::clone::Clone::port) (`-p`)
+    /// and exactly one clone target is selected with
+    /// [`Clone::remote`](crate::cmd::clone::Clone::remote) (`-r`)
+    /// or [`Clone::file`](crate::cmd::clone::Clone::file) (`-f`).
+    /// Unlike most commands, `p4 clone` does not accept the global options.
+    ///
+    /// This method is named `clone_command` rather than `clone` so that it
+    /// does not collide with the [`Clone`](std::clone::Clone) implementation
+    /// derived for [`P4Cli`].
+    #[cfg(not(feature = "lt2015_1"))]
+    pub fn clone_command(&self) -> Clone {
+        Clone::new(self.bin.clone())
     }
 
     /// Create or edit a client workspace specification and its view.
