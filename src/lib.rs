@@ -19,6 +19,7 @@ use crate::cmd::Client;
 use crate::cmd::Clients;
 #[cfg(not(feature = "lt2015_1"))]
 use crate::cmd::Clone;
+use crate::cmd::Configure;
 use crate::cmd::Describe;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
@@ -212,6 +213,25 @@ impl P4Cli {
     #[cfg(not(feature = "lt2015_1"))]
     pub fn cmd_clone(&self) -> Clone {
         Clone::new(self.bin.clone())
+    }
+
+    /// Set, view, and manage server configuration variables.
+    ///
+    /// The returned command starts with no operation selected; call
+    /// [`Configure::set`], [`Configure::unset`], or
+    /// [`Configure::show`] to select the operation.
+    #[cfg_attr(not(feature = "lt2019_2"), doc = "")]
+    #[cfg_attr(
+        not(feature = "lt2019_2"),
+        doc = "The [`Configure::history`](Configure::history) operation selects the `p4 configure history` report."
+    )]
+    #[cfg_attr(not(feature = "lt2023_2"), doc = "")]
+    #[cfg_attr(
+        not(feature = "lt2023_2"),
+        doc = "The [`Configure::patch`](Configure::patch) operation retroactively sets a history comment, and [`Configure::help`](Configure::help) prints the configurables reference."
+    )]
+    pub fn cmd_configure(&self) -> Configure {
+        Configure::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a client workspace specification and its view.

@@ -47,7 +47,7 @@ fn main() -> std::io::Result<()> {
     let p4 = P4Cli::default();
 
     // `p4 print -q //depot/project/README.md`, output captured.
-    let mut print = p4.print().quiet_mode(true);
+    let mut print = p4.cmd_print().quiet_mode(true);
     let output = print.output_with((&[OsStr::new("//depot/project/README.md")],))?;
     println!("{}", String::from_utf8_lossy(&output.stdout));
 
@@ -85,15 +85,15 @@ use perforce_cli::P4Cli;
 let p4 = P4Cli::default();
 
 // `p4 sync -f -q`
-let mut force_sync = p4.sync().force(true).quiet_mode(true);
+let mut force_sync = p4.cmd_sync().force(true).quiet_mode(true);
 force_sync.spawn_with((Vec::<&OsStr>::new(),))?;
 
 // `p4 sync -s`
-let mut safe_sync = p4.sync().enable_safe_check();
+let mut safe_sync = p4.cmd_sync().enable_safe_check();
 safe_sync.spawn_with((Vec::<&OsStr>::new(),))?;
 
 // `p4 sync -p //depot/project/...`
-let mut populate = p4.sync().populate_client_workspace();
+let mut populate = p4.cmd_sync().populate_client_workspace();
 populate.spawn_with((&[OsStr::new("//depot/project/...")],))?;
 ```
 
@@ -113,7 +113,7 @@ use perforce_cli::P4Cli;
 let p4 = P4Cli::default();
 
 // `p4 admin stop`
-let output = p4.admin().stop().output()?;
+let output = p4.cmd_admin().stop().output()?;
 ```
 
 ### Spawning traits
@@ -150,10 +150,10 @@ the API.
 ```toml
 [dependencies]
 # Defaults to the newest supported release.
-perforce-cli = "0.1.0-alpha.4"
+perforce-cli = "0.2.0"
 
 # Or pin an older server line.
-perforce-cli = { version = "0.1.0-alpha.4", default-features = false, features = ["v2022_2"] }
+perforce-cli = { version = "0.2.0", default-features = false, features = ["v2022_2"] }
 ```
 
 Supported versions: `v2014_1`, `v2014_2`, `v2015_1`, `v2015_2`, `v2016_1`,
@@ -164,18 +164,20 @@ Supported versions: `v2014_1`, `v2014_2`, `v2015_1`, `v2015_2`, `v2016_1`,
 ## Supported commands
 
 `add`, `admin`, `aliases`, `annotate`, `archive`, `attribute`, `bgtask`,
-`branch`, `branches`, `cachepurge`, `change`, `changes`, `clean`, `describe`,
-`diff`, `diff2`, `edit`, `filelog`, `print`, `sync`, `where`.
+`branch`, `branches`, `cachepurge`, `change`, `changes`, `clean`, `clone`,
+`configure`, `describe`, `diff`, `diff2`, `edit`, `filelog`, `print`, `sync`,
+`where`.
 
 More commands are being added.
 
 ## Examples
 
-See [`examples/print.rs`](examples/print.rs), which covers capturing output,
-chaining builders, and spawning a streaming child process;
-[`examples/diff.rs`](examples/diff.rs), which covers compile-time mode
-transitions; and [`examples/filelog.rs`](examples/filelog.rs), which covers
-the file revision history command and its state-dependent options.
+See [`examples/print.rs`](https://docs.rs/crate/perforce-cli/latest/source/examples/print.rs),
+which covers capturing output, chaining builders, and spawning a streaming
+child process; [`examples/diff.rs`](https://docs.rs/crate/perforce-cli/latest/source/examples/diff.rs),
+which covers compile-time mode transitions; and
+[`examples/filelog.rs`](https://docs.rs/crate/perforce-cli/latest/source/examples/filelog.rs),
+which covers the file revision history command and its state-dependent options.
 
 ```text
 cargo run --example print
@@ -185,4 +187,5 @@ cargo run --example filelog
 
 ## License
 
-Licensed under the Mozilla Public License, Version 2.0 ([LICENSE](LICENSE)).
+Licensed under the Mozilla Public License, Version 2.0
+([LICENSE](https://github.com/araraloren/perforce-cli/blob/main/LICENSE)).

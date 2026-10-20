@@ -49,8 +49,14 @@ impl ExclusiveOption for Filter {
 /// The `-u user` / `--me` owner filter: list only branches owned by the
 /// specified user (or the current user).
 ///
-/// Created by [`Branches::user`] or [`Branches::filter_me`]; the enum holds
-/// exactly one of the two mutually exclusive choices.
+#[cfg_attr(
+    feature = "lt2016_1",
+    doc = "Created by [`Branches::user`]. The enum holds exactly one of the two mutually exclusive choices."
+)]
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "Created by [`Branches::user`] or [`Branches::filter_me`]; the enum holds exactly one of the two mutually exclusive choices."
+)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum User {
     /// `-u user`: list branches owned by the named user; the flag selects

@@ -48,8 +48,11 @@ impl ExclusiveOption for Filter {
 
 /// The `-u user` state: list only client workspaces owned by the named user.
 ///
-/// Created by [`Clients::user`]; call [`Clients::case_insensitive`] on the
-/// entered state to add the `--user-case-insensitive` suboption.
+#[cfg_attr(feature = "lt2024_2", doc = "Created by [`Clients::user`].")]
+#[cfg_attr(
+    not(feature = "lt2024_2"),
+    doc = "Created by [`Clients::user`]; call [`Clients::case_insensitive`] on the entered state to add the `--user-case-insensitive` suboption."
+)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct User {
     user: String,
@@ -130,8 +133,15 @@ impl ExclusiveOption for ListSpecified {
 /// groups at compile time, each starting as [`Unselected`]:
 /// - `F`: the `-e` / `-E` name filter, entered via [`Clients::filter`]
 ///   ([`Filter`]).
-/// - `U`: the `-u user` / `--me` owner filter, entered via [`Clients::user`]
-///   ([`User`]) or [`Clients::filter_me`] ([`Me`]).
+#[cfg_attr(
+    feature = "lt2016_1",
+    doc = "- `U`: the `-u user` owner filter, entered via [`Clients::user`] ([`User`])."
+)]
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "- `U`: the `-u user` / `--me` owner filter, entered via [`Clients::user`]",
+    doc = "  ([`User`]) or [`Clients::filter_me`] ([`Me`])."
+)]
 /// - `C`: the `-a` / `-s serverID` list category, entered via
 ///   [`Clients::all`] ([`ListAll`]) or [`Clients::server_id`]
 ///   ([`ListSpecified`]).
