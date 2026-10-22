@@ -20,6 +20,7 @@ use crate::cmd::Clients;
 #[cfg(not(feature = "lt2015_1"))]
 use crate::cmd::Clone;
 use crate::cmd::Configure;
+use crate::cmd::Copy;
 use crate::cmd::Describe;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
@@ -232,6 +233,12 @@ impl P4Cli {
     )]
     pub fn cmd_configure(&self) -> Configure {
         Configure::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Copy files and/or the stream spec from one location in the depot to
+    /// another.
+    pub fn cmd_copy(&self) -> Copy {
+        Copy::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a client workspace specification and its view.

@@ -115,7 +115,8 @@ impl Configure<Unselected> {
                 server_id: None,
                 variable: variable.into(),
                 value: value.into(),
-                ..Default::default()
+                #[cfg(not(feature = "lt2023_2"))]
+                comment: None,
             },
         }
     }
@@ -131,7 +132,8 @@ impl Configure<Unselected> {
             sub_command: UnSetVariable {
                 server_id: None,
                 variable: variable.into(),
-                ..Default::default()
+                #[cfg(not(feature = "lt2023_2"))]
+                comment: None,
             },
         }
     }

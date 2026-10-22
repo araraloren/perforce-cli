@@ -32,7 +32,7 @@ time rather than failing at runtime.
 
 ```toml
 [dependencies]
-perforce-cli = "0.2.0"
+perforce-cli = "0.2.1"
 ```
 
 ### Quick start
@@ -150,10 +150,10 @@ the API.
 ```toml
 [dependencies]
 # Defaults to the newest supported release.
-perforce-cli = "0.2.0"
+perforce-cli = "0.2.1"
 
 # Or pin an older server line.
-perforce-cli = { version = "0.2.0", default-features = false, features = ["v2022_2"] }
+perforce-cli = { version = "0.2.1", default-features = false, features = ["v2022_2"] }
 ```
 
 Supported versions: `v2014_1`, `v2014_2`, `v2015_1`, `v2015_2`, `v2016_1`,
@@ -165,8 +165,8 @@ Supported versions: `v2014_1`, `v2014_2`, `v2015_1`, `v2015_2`, `v2016_1`,
 
 `add`, `admin`, `aliases`, `annotate`, `archive`, `attribute`, `bgtask`,
 `branch`, `branches`, `cachepurge`, `change`, `changes`, `clean`, `clone`,
-`configure`, `describe`, `diff`, `diff2`, `edit`, `filelog`, `print`, `sync`,
-`where`.
+`configure`, `copy`, `describe`, `diff`, `diff2`, `edit`, `filelog`, `print`,
+`sync`, `where`.
 
 More commands are being added.
 

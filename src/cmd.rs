@@ -18,6 +18,7 @@ pub mod clients;
 #[cfg(not(feature = "lt2015_1"))]
 pub mod clone;
 pub mod configure;
+pub mod copy;
 pub mod describe;
 pub mod diff;
 pub mod diff2;
@@ -47,6 +48,7 @@ pub use clients::Clients;
 #[cfg(not(feature = "lt2015_1"))]
 pub use clone::Clone;
 pub use configure::Configure;
+pub use copy::Copy;
 pub use describe::Describe;
 pub use diff::Diff;
 pub use diff::DisplayOptions;
