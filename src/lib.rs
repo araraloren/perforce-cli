@@ -244,10 +244,14 @@ impl P4Cli {
 
     /// Access, set, increment, or delete a persistent variable.
     ///
-    /// The returned builder starts in the bare query form
-    /// `p4 counter countername`; use [`Counter::set`], [`Counter::delete`],
-    /// [`Counter::increment`], [`Counter::multi`], or [`Counter::cas`] to
-    /// select another form.
+    #[cfg_attr(
+        feature = "lt2016_1",
+        doc = "The returned builder starts in the bare query form `p4 counter countername`; use [`Counter::set`], [`Counter::delete`], [`Counter::increment`], or [`Counter::multi`] to select another form."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2016_1"),
+        doc = "The returned builder starts in the bare query form `p4 counter countername`; use [`Counter::set`], [`Counter::show_previous`], [`Counter::delete`], [`Counter::increment`], [`Counter::multi`], or [`Counter::cas`] to select another form."
+    )]
     pub fn cmd_counter(&self) -> Counter {
         Counter::new(self.bin.clone(), self.global_opts.clone())
     }

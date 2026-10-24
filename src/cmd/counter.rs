@@ -17,15 +17,29 @@ use crate::spawn::ParameterizedSpawn;
 ///
 /// When selected, the previous value of the counter is displayed after the
 /// counter has been set or incremented.
+#[cfg(not(feature = "lt2016_1"))]
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ShowPrevious;
 
-/// The set form: `p4 [g-opts] counter [-f -v] countername value`.
+#[cfg_attr(
+    feature = "lt2016_1",
+    doc = "The set form: `p4 [g-opts] counter [-f] countername value`."
+)]
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "The set form: `p4 [g-opts] counter [-f -v] countername value`."
+)]
 ///
 /// Sets the value of `countername`, creating the counter if it does not
-/// already exist. The `B` type parameter tracks whether `-v` has been
-/// supplied: [`Unselected`] does not display the previous value;
-/// [`ShowPrevious`] does.
+/// already exist.
+#[cfg_attr(
+    feature = "lt2016_1",
+    doc = "The `B` type parameter only ever takes [`Unselected`]; `-v` is not available in this version."
+)]
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "The `B` type parameter tracks whether `-v` has been supplied: [`Unselected`] does not display the previous value; [`ShowPrevious`] does."
+)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SetMode<B = Unselected> {
     force: bool,
@@ -40,6 +54,7 @@ impl ExclusiveOption for SetMode<Unselected> {
     }
 }
 
+#[cfg(not(feature = "lt2016_1"))]
 impl ExclusiveOption for SetMode<ShowPrevious> {
     fn inject_args(&self, command: &mut Command) {
         if self.force {
@@ -69,9 +84,24 @@ impl ExclusiveOption for DeleteMode {
 
 /// The increment form: `p4 [g-opts] counter [-f -v] -i countername`.
 ///
-/// Increments `countername` by one and returns the new value. The `B` type
-/// parameter tracks whether `-v` has been supplied: [`Unselected`] does not
-/// display the previous value; [`ShowPrevious`] does.
+#[cfg_attr(
+    feature = "lt2016_1",
+    doc = "The increment form: `p4 [g-opts] counter [-f] -i countername`."
+)]
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "The increment form: `p4 [g-opts] counter [-f -v] -i countername`."
+)]
+///
+/// Increments `countername` by one and returns the new value.
+#[cfg_attr(
+    feature = "lt2016_1",
+    doc = "The `B` type parameter only ever takes [`Unselected`]; `-v` is not available in this version."
+)]
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "The `B` type parameter tracks whether `-v` has been supplied: [`Unselected`] does not display the previous value; [`ShowPrevious`] does."
+)]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct IncrementMode<B = Unselected> {
     force: bool,
@@ -87,6 +117,7 @@ impl ExclusiveOption for IncrementMode<Unselected> {
     }
 }
 
+#[cfg(not(feature = "lt2016_1"))]
 impl ExclusiveOption for IncrementMode<ShowPrevious> {
     fn inject_args(&self, command: &mut Command) {
         if self.force {
@@ -122,12 +153,14 @@ impl ExclusiveOption for MultiMode {
 /// Sets `countername` to `newvalue` only if its current value is `oldvalue`.
 /// A counter that has never been set or that has been deleted cannot be set
 /// using this form.
+#[cfg(not(feature = "lt2016_1"))]
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct CASMode {
     old_value: String,
     new_value: String,
 }
 
+#[cfg(not(feature = "lt2016_1"))]
 impl ExclusiveOption for CASMode {
     fn inject_args(&self, command: &mut Command) {
         command
@@ -149,42 +182,71 @@ impl ExclusiveOption for CASMode {
 /// Counters provide long-term variable storage for scripts. Querying a
 /// counter that does not exist returns zero; counter names are not stored in
 /// the database until set to a nonzero value. Deleting a counter has the same
-/// effect as setting it to zero. The compare-and-set form can be used as a
-/// building block for higher-level tools and processes.
+/// effect as setting it to zero.
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "The compare-and-set form can be used as a building block for higher-level tools and processes."
+)]
 ///
 /// # Syntax
 ///
 /// ```text
 /// p4 [g-opts] counter countername
-/// p4 [g-opts] counter [-f -v] countername value
+#[cfg_attr(
+    feature = "lt2016_1",
+    doc = "p4 [g-opts] counter [-f] countername value"
+)]
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "p4 [g-opts] counter [-f -v] countername value"
+)]
 /// p4 [g-opts] counter [-f] -d countername
-/// p4 [g-opts] counter [-f -v] -i countername
+#[cfg_attr(feature = "lt2016_1", doc = "p4 [g-opts] counter [-f] -i countername")]
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "p4 [g-opts] counter [-f -v] -i countername"
+)]
 /// p4 [g-opts] counter [-f] -m [pair list]
-/// p4 [g-opts] counter --from oldvalue --to newvalue countername
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "p4 [g-opts] counter --from oldvalue --to newvalue countername"
+)]
 /// ```
 ///
 /// The `M` type parameter tracks the command form at compile time, starting
 /// as [`Unselected`] from [`Counter::new`], which is the bare query form
 /// `p4 counter countername`: spawn it with the counter name to read the
 /// value. Enter another form with one of [`Self::set`], [`Self::force`],
-/// [`Self::show_previous`], [`Self::delete`], [`Self::increment`],
-/// [`Self::multi`], or [`Self::cas`]:
-/// - [`SetMode`] (entered via [`Self::set`], [`Self::force`], or
-///   [`Self::show_previous`]): set or create the counter; can transition to
-///   [`DeleteMode`], [`IncrementMode`], or [`MultiMode`] preserving `-f`, and
-///   `Counter::show_previous` supplies `-v` by transitioning to the
-///   [`ShowPrevious`] state.
+#[cfg_attr(
+    feature = "lt2016_1",
+    doc = "[`Self::delete`], [`Self::increment`], or [`Self::multi`]:"
+)]
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "[`Self::show_previous`], [`Self::delete`], [`Self::increment`], [`Self::multi`], or [`Self::cas`]:"
+)]
+#[cfg_attr(
+    feature = "lt2016_1",
+    doc = "- [`SetMode`] (entered via [`Self::set`] or [`Self::force`]): set or create the counter; can transition to [`DeleteMode`], [`IncrementMode`], or [`MultiMode`] preserving `-f`."
+)]
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "- [`SetMode`] (entered via [`Self::set`], [`Self::force`], or [`Self::show_previous`]): set or create the counter; can transition to [`DeleteMode`], [`IncrementMode`], or [`MultiMode`] preserving `-f`, and `Counter::show_previous` supplies `-v` by transitioning to the [`ShowPrevious`] state."
+)]
 /// - [`DeleteMode`] (`-d`, entered via [`Self::delete`]): delete the counter.
 /// - [`IncrementMode`] (`-i`, entered via [`Self::increment`]): increment the
 ///   counter by one and return the new value.
 /// - [`MultiMode`] (`-m`, entered via [`Self::multi`]): perform a list of
 ///   operations in a single invocation.
-/// - [`CASMode`] (`--from oldvalue --to newvalue`, entered via
-///   [`Self::cas`]): set the counter only if its current value matches.
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "- [`CASMode`] (`--from oldvalue --to newvalue`, entered via [`Self::cas`]): set the counter only if its current value matches."
+)]
 ///
-/// `-v` cannot be combined with `-d` or `-m`: [`DeleteMode`] and
-/// [`MultiMode`] are only reachable from [`SetMode`] while it is in the
-/// [`Unselected`] state.
+#[cfg_attr(
+    not(feature = "lt2016_1"),
+    doc = "`-v` cannot be combined with `-d` or `-m`: [`DeleteMode`] and [`MultiMode`] are only reachable from [`SetMode`] while it is in the [`Unselected`] state."
+)]
 #[derive(Debug, Clone, Default)]
 pub struct Counter<M = Unselected> {
     bin: PathBuf,
@@ -217,8 +279,12 @@ impl Counter<Unselected> {
     /// Enters the set form: `p4 counter [-f -v] countername value`.
     ///
     /// Spawn the returned builder with the counter name and the value to
-    /// assign. Use `Counter::force` to supply `-f`, or
-    /// `Counter::show_previous` to supply `-v`.
+    /// assign.
+    #[cfg_attr(feature = "lt2016_1", doc = "Use `Counter::force` to supply `-f`.")]
+    #[cfg_attr(
+        not(feature = "lt2016_1"),
+        doc = "Use `Counter::force` to supply `-f`, or `Counter::show_previous` to supply `-v`."
+    )]
     pub fn set(self) -> Counter<SetMode<Unselected>> {
         Counter {
             bin: self.bin,
@@ -249,6 +315,7 @@ impl Counter<Unselected> {
     ///
     /// Spawn the returned builder with the counter name and the value to
     /// assign, or transition to the increment form.
+    #[cfg(not(feature = "lt2016_1"))]
     pub fn show_previous(self) -> Counter<SetMode<ShowPrevious>> {
         Counter {
             bin: self.bin,
@@ -302,6 +369,7 @@ impl Counter<Unselected> {
     /// `old_value` is the value the counter must currently hold; `new_value`
     /// is the value to assign when it matches. Spawn the returned builder
     /// with the counter name.
+    #[cfg(not(feature = "lt2016_1"))]
     pub fn cas(
         self,
         old_value: impl Into<String>,
@@ -430,6 +498,10 @@ impl Counter<SetMode<Unselected>> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn get_force(&self) -> bool {
         self.mode.force
     }
@@ -441,6 +513,10 @@ impl Counter<SetMode<Unselected>> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn set_force(&mut self, v: bool) -> &mut Self {
         self.mode.force = v;
         self
@@ -453,6 +529,10 @@ impl Counter<SetMode<Unselected>> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn force(mut self, v: bool) -> Self {
         self.mode.force = v;
         self
@@ -468,6 +548,7 @@ impl Counter<SetMode<Unselected>> {
     /// Transitions this command to the [`ShowPrevious`] state, which also
     /// permits transitioning to the increment form (`-v` is valid with `-i`
     /// but not with `-d`).
+    #[cfg(not(feature = "lt2016_1"))]
     pub fn show_previous(self) -> Counter<SetMode<ShowPrevious>> {
         Counter {
             bin: self.bin,
@@ -481,8 +562,10 @@ impl Counter<SetMode<Unselected>> {
 
     /// Transitions to the delete form (`-d`), preserving the `-f` flag.
     ///
-    /// This transition is unavailable from the [`ShowPrevious`] state because
-    /// `-v` cannot be combined with `-d`.
+    #[cfg_attr(
+        not(feature = "lt2016_1"),
+        doc = "This transition is unavailable from the [`ShowPrevious`] state because `-v` cannot be combined with `-d`."
+    )]
     pub fn delete(self) -> Counter<DeleteMode> {
         Counter {
             bin: self.bin,
@@ -507,8 +590,10 @@ impl Counter<SetMode<Unselected>> {
 
     /// Transitions to the multi form (`-m`), preserving the `-f` flag.
     ///
-    /// This transition is unavailable from the [`ShowPrevious`] state because
-    /// `-v` cannot be combined with `-m`.
+    #[cfg_attr(
+        not(feature = "lt2016_1"),
+        doc = "This transition is unavailable from the [`ShowPrevious`] state because `-v` cannot be combined with `-m`."
+    )]
     pub fn multi(self) -> Counter<MultiMode> {
         Counter {
             bin: self.bin,
@@ -524,6 +609,7 @@ impl Counter<SetMode<Unselected>> {
 // SetMode<ShowPrevious>: force accessor + transition
 // ---------------------------------------------------------------------------
 
+#[cfg(not(feature = "lt2016_1"))]
 impl Counter<SetMode<ShowPrevious>> {
     /// # Description
     ///
@@ -532,6 +618,10 @@ impl Counter<SetMode<ShowPrevious>> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn get_force(&self) -> bool {
         self.mode.force
     }
@@ -543,6 +633,10 @@ impl Counter<SetMode<ShowPrevious>> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn set_force(&mut self, v: bool) -> &mut Self {
         self.mode.force = v;
         self
@@ -555,6 +649,10 @@ impl Counter<SetMode<ShowPrevious>> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn force(mut self, v: bool) -> Self {
         self.mode.force = v;
         self
@@ -586,6 +684,10 @@ impl Counter<DeleteMode> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn get_force(&self) -> bool {
         self.mode.force
     }
@@ -597,6 +699,10 @@ impl Counter<DeleteMode> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn set_force(&mut self, v: bool) -> &mut Self {
         self.mode.force = v;
         self
@@ -609,6 +715,10 @@ impl Counter<DeleteMode> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn force(mut self, v: bool) -> Self {
         self.mode.force = v;
         self
@@ -627,6 +737,10 @@ impl<B> Counter<IncrementMode<B>> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn get_force(&self) -> bool {
         self.mode.force
     }
@@ -638,6 +752,10 @@ impl<B> Counter<IncrementMode<B>> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn set_force(&mut self, v: bool) -> &mut Self {
         self.mode.force = v;
         self
@@ -650,6 +768,10 @@ impl<B> Counter<IncrementMode<B>> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn force(mut self, v: bool) -> Self {
         self.mode.force = v;
         self
@@ -665,6 +787,7 @@ impl Counter<IncrementMode<Unselected>> {
     /// has been incremented.
     ///
     /// Transitions this command to the [`ShowPrevious`] state.
+    #[cfg(not(feature = "lt2016_1"))]
     pub fn show_previous(self) -> Counter<IncrementMode<ShowPrevious>> {
         Counter {
             bin: self.bin,
@@ -689,6 +812,10 @@ impl Counter<MultiMode> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn get_force(&self) -> bool {
         self.mode.force
     }
@@ -700,6 +827,10 @@ impl Counter<MultiMode> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn set_force(&mut self, v: bool) -> &mut Self {
         self.mode.force = v;
         self
@@ -712,6 +843,10 @@ impl Counter<MultiMode> {
     /// Set or delete counters that are reserved for use by P4 Server (listed
     /// in `p4 help counters`). Never set the change counter to a value that
     /// is lower than its current value.
+    #[cfg_attr(
+        all(feature = "lt2021_2", not(feature = "lt2016_1")),
+        doc = "Only operators or super users can use this flag."
+    )]
     pub fn force(mut self, v: bool) -> Self {
         self.mode.force = v;
         self
@@ -722,6 +857,7 @@ impl Counter<MultiMode> {
 // CASMode: old and new value accessors
 // ---------------------------------------------------------------------------
 
+#[cfg(not(feature = "lt2016_1"))]
 impl Counter<CASMode> {
     /// # Description
     ///
@@ -911,6 +1047,7 @@ where
 }
 
 // Compare-and-set form: exactly 1 countername.
+#[cfg(not(feature = "lt2016_1"))]
 impl<I: AsRef<OsStr>> ParameterizedSpawn<(I,)> for Counter<CASMode> {
     type Output = Child;
     type Error = std::io::Error;
@@ -970,12 +1107,14 @@ mod tests {
         assert_eq!(args_of(&counter.setup_command("p4")), ["counter", "-f"]);
     }
 
+    #[cfg(not(feature = "lt2016_1"))]
     #[test]
     fn set_form_with_show_previous() {
         let counter = Counter::new("p4", GlobalOpts::new()).show_previous();
         assert_eq!(args_of(&counter.setup_command("p4")), ["counter", "-v"]);
     }
 
+    #[cfg(not(feature = "lt2016_1"))]
     #[test]
     fn set_form_with_force_and_show_previous() {
         let counter = Counter::new("p4", GlobalOpts::new())
@@ -1029,6 +1168,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "lt2016_1"))]
     #[test]
     fn increment_form_preserves_force_and_show_previous() {
         let counter = Counter::new("p4", GlobalOpts::new())
@@ -1041,6 +1181,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "lt2016_1"))]
     #[test]
     fn increment_form_show_previous_can_be_set_directly() {
         let counter = Counter::new("p4", GlobalOpts::new())
@@ -1076,6 +1217,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "lt2016_1"))]
     #[test]
     fn cas_form_injects_from_and_to_before_the_name() {
         let counter = Counter::new("p4", GlobalOpts::new()).cas("3", "4");
@@ -1085,6 +1227,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(feature = "lt2016_1"))]
     #[test]
     fn cas_value_accessors_replace_values() {
         let mut counter = Counter::new("p4", GlobalOpts::new()).cas("3", "4");
@@ -1120,7 +1263,9 @@ mod tests {
             ["-p", "localhost:1666", "-q", "counter", "-f", "-m"]
         );
 
+        #[cfg(not(feature = "lt2016_1"))]
         let counter = Counter::new("p4", global_opts).cas("3", "4");
+        #[cfg(not(feature = "lt2016_1"))]
         assert_eq!(
             args_of(&counter.setup_command("p4")),
             [

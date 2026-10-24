@@ -119,23 +119,26 @@ fn form_2_set() {
     expect_chain!(["counter"], p4.cmd_counter().set());
     expect_chain!(["counter"], p4.cmd_counter().force(false));
     expect_chain!(["counter", "-f"], p4.cmd_counter().force(true));
-    expect_chain!(["counter", "-v"], p4.cmd_counter().show_previous());
-    expect_chain!(
-        ["counter", "-f", "-v"],
-        p4.cmd_counter().set().force(true).show_previous()
-    );
-    expect_chain!(
-        ["counter", "-f", "-v"],
-        p4.cmd_counter().set().show_previous().force(true)
-    );
-    expect_chain!(
-        ["counter", "-f", "-v"],
-        p4.cmd_counter().force(true).show_previous()
-    );
-    expect_chain!(
-        ["counter", "-v"],
-        p4.cmd_counter().force(true).show_previous().force(false)
-    );
+    #[cfg(not(feature = "lt2016_1"))]
+    {
+        expect_chain!(["counter", "-v"], p4.cmd_counter().show_previous());
+        expect_chain!(
+            ["counter", "-f", "-v"],
+            p4.cmd_counter().set().force(true).show_previous()
+        );
+        expect_chain!(
+            ["counter", "-f", "-v"],
+            p4.cmd_counter().set().show_previous().force(true)
+        );
+        expect_chain!(
+            ["counter", "-f", "-v"],
+            p4.cmd_counter().force(true).show_previous()
+        );
+        expect_chain!(
+            ["counter", "-v"],
+            p4.cmd_counter().force(true).show_previous().force(false)
+        );
+    }
 
     // Each set form spawns with the counter name and value operands.
     let mut cmd = echo_counter().set();
@@ -144,11 +147,14 @@ fn form_2_set() {
         ["counter", "mycounter", "123"]
     );
 
-    let mut cmd = echo_counter().force(true).show_previous();
-    assert_eq!(
-        spawned_args(&mut cmd, ("mycounter", "123")),
-        ["counter", "-f", "-v", "mycounter", "123"]
-    );
+    #[cfg(not(feature = "lt2016_1"))]
+    {
+        let mut cmd = echo_counter().force(true).show_previous();
+        assert_eq!(
+            spawned_args(&mut cmd, ("mycounter", "123")),
+            ["counter", "-f", "-v", "mycounter", "123"]
+        );
+    }
 }
 
 // Form 3 -------------------------------------------------------------------
@@ -199,26 +205,29 @@ fn form_4_increment() {
         ["counter", "-f", "-i"],
         p4.cmd_counter().force(true).increment()
     );
-    expect_chain!(
-        ["counter", "-v", "-i"],
-        p4.cmd_counter().increment().show_previous()
-    );
-    expect_chain!(
-        ["counter", "-v", "-i"],
-        p4.cmd_counter().show_previous().increment()
-    );
-    expect_chain!(
-        ["counter", "-v", "-i"],
-        p4.cmd_counter().set().show_previous().increment()
-    );
-    expect_chain!(
-        ["counter", "-f", "-v", "-i"],
-        p4.cmd_counter().force(true).show_previous().increment()
-    );
-    expect_chain!(
-        ["counter", "-f", "-v", "-i"],
-        p4.cmd_counter().increment().force(true).show_previous()
-    );
+    #[cfg(not(feature = "lt2016_1"))]
+    {
+        expect_chain!(
+            ["counter", "-v", "-i"],
+            p4.cmd_counter().increment().show_previous()
+        );
+        expect_chain!(
+            ["counter", "-v", "-i"],
+            p4.cmd_counter().show_previous().increment()
+        );
+        expect_chain!(
+            ["counter", "-v", "-i"],
+            p4.cmd_counter().set().show_previous().increment()
+        );
+        expect_chain!(
+            ["counter", "-f", "-v", "-i"],
+            p4.cmd_counter().force(true).show_previous().increment()
+        );
+        expect_chain!(
+            ["counter", "-f", "-v", "-i"],
+            p4.cmd_counter().increment().force(true).show_previous()
+        );
+    }
 
     let mut cmd = echo_counter().increment();
     assert_eq!(
@@ -226,11 +235,14 @@ fn form_4_increment() {
         ["counter", "-i", "mycounter"]
     );
 
-    let mut cmd = echo_counter().force(true).show_previous().increment();
-    assert_eq!(
-        spawned_args(&mut cmd, ("mycounter",)),
-        ["counter", "-f", "-v", "-i", "mycounter"]
-    );
+    #[cfg(not(feature = "lt2016_1"))]
+    {
+        let mut cmd = echo_counter().force(true).show_previous().increment();
+        assert_eq!(
+            spawned_args(&mut cmd, ("mycounter",)),
+            ["counter", "-f", "-v", "-i", "mycounter"]
+        );
+    }
 }
 
 // Form 5 -------------------------------------------------------------------
@@ -276,6 +288,7 @@ fn form_5_multi() {
 // The compare-and-set form stores both values at the transition; the
 // accessors can replace them afterwards.
 
+#[cfg(not(feature = "lt2016_1"))]
 fn form_6_cas() {
     let p4 = P4Cli::default();
 
@@ -327,20 +340,23 @@ fn global_options() {
     let multi = Counter::new("p4", global_opts.clone()).multi();
     expect_args(&multi, &["-p", "localhost:1666", "-q", "counter", "-m"]);
 
-    let cas = Counter::new("p4", global_opts).cas("3", "4");
-    expect_args(
-        &cas,
-        &[
-            "-p",
-            "localhost:1666",
-            "-q",
-            "counter",
-            "--from",
-            "3",
-            "--to",
-            "4",
-        ],
-    );
+    #[cfg(not(feature = "lt2016_1"))]
+    {
+        let cas = Counter::new("p4", global_opts).cas("3", "4");
+        expect_args(
+            &cas,
+            &[
+                "-p",
+                "localhost:1666",
+                "-q",
+                "counter",
+                "--from",
+                "3",
+                "--to",
+                "4",
+            ],
+        );
+    }
 }
 
 // Rejected combinations -----------------------------------------------------
@@ -371,6 +387,7 @@ fn main() -> io::Result<()> {
     form_3_delete();
     form_4_increment();
     form_5_multi();
+    #[cfg(not(feature = "lt2016_1"))]
     form_6_cas();
     global_options();
     println!("all p4 counter syntax combinations verified");
