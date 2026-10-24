@@ -11,6 +11,7 @@ use crate::cmd::Attribute;
 use crate::cmd::BackGroundTask;
 use crate::cmd::Branch;
 use crate::cmd::Branches;
+use crate::cmd::CStat;
 use crate::cmd::CachePurge;
 use crate::cmd::Change;
 use crate::cmd::Changes;
@@ -261,6 +262,11 @@ impl P4Cli {
     /// associated scripts.
     pub fn cmd_counters(&self) -> Counters {
         Counters::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Dump change or sync status for the current client workspace.
+    pub fn cmd_cstat(&self) -> CStat {
+        CStat::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a client workspace specification and its view.
