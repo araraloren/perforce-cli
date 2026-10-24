@@ -21,6 +21,7 @@ use crate::cmd::Clients;
 use crate::cmd::Clone;
 use crate::cmd::Configure;
 use crate::cmd::Copy;
+use crate::cmd::Counter;
 use crate::cmd::Describe;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
@@ -239,6 +240,16 @@ impl P4Cli {
     /// another.
     pub fn cmd_copy(&self) -> Copy {
         Copy::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Access, set, increment, or delete a persistent variable.
+    ///
+    /// The returned builder starts in the bare query form
+    /// `p4 counter countername`; use [`Counter::set`], [`Counter::delete`],
+    /// [`Counter::increment`], [`Counter::multi`], or [`Counter::cas`] to
+    /// select another form.
+    pub fn cmd_counter(&self) -> Counter {
+        Counter::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a client workspace specification and its view.
