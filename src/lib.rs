@@ -22,6 +22,7 @@ use crate::cmd::Clone;
 use crate::cmd::Configure;
 use crate::cmd::Copy;
 use crate::cmd::Counter;
+use crate::cmd::Counters;
 use crate::cmd::Describe;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
@@ -254,6 +255,12 @@ impl P4Cli {
     )]
     pub fn cmd_counter(&self) -> Counter {
         Counter::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Display the list of long-term variables used by P4 Server and
+    /// associated scripts.
+    pub fn cmd_counters(&self) -> Counters {
+        Counters::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a client workspace specification and its view.
