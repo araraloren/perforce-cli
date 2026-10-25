@@ -24,6 +24,7 @@ use crate::cmd::Configure;
 use crate::cmd::Copy;
 use crate::cmd::Counter;
 use crate::cmd::Counters;
+use crate::cmd::DBSchema;
 use crate::cmd::Describe;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
@@ -267,6 +268,11 @@ impl P4Cli {
     /// Dump change or sync status for the current client workspace.
     pub fn cmd_cstat(&self) -> CStat {
         CStat::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Report information about metadata in the database.
+    pub fn cmd_dbschema(&self) -> DBSchema {
+        DBSchema::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a client workspace specification and its view.

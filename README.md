@@ -165,7 +165,7 @@ Supported versions: `v2014_1`, `v2014_2`, `v2015_1`, `v2015_2`, `v2016_1`,
 
 `add`, `admin`, `aliases`, `annotate`, `archive`, `attribute`, `bgtask`,
 `branch`, `branches`, `cachepurge`, `change`, `changes`, `clean`, `clone`,
-`configure`, `copy`, `counter`, `counters`, `cstat`, `describe`, `diff`, `diff2`, `edit`,
+`configure`, `copy`, `counter`, `counters`, `cstat`, `dbschema`, `describe`, `diff`, `diff2`, `edit`,
 `filelog`, `print`, `sync`, `where`.
 
 More commands are being added.
