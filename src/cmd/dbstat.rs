@@ -213,7 +213,9 @@ impl DBStat<Unselected> {
         not(feature = "lt2024_1"),
         doc = "Display a histogram showing distances between leaf pages. This enables you to anticipate disk seeks required for sequential database scans. This scans only the internal node pages of the file, not the leaf or overflow pages, and thus reads only 1-5% of the file.",
         doc = "",
-        doc = "This option blocks write access to the database while it scans the tables. It is best to get guidance from [Perforce Support](https://www.perforce.com/support?product=Helix%20Core) before using this option."
+        doc = "> **Note**",
+        doc = ">",
+        doc = "> This option blocks write access to the database while it scans the tables. It is best to get guidance from [Perforce Support](https://www.perforce.com/support?product=Helix%20Core) before using this option."
     )]
     ///
     /// Use the scan state's `all` transition to supply `-a`; otherwise
@@ -430,7 +432,9 @@ impl<M> DBStat<Scan<M>> {
         not(feature = "lt2024_1"),
         doc = "Display a histogram showing distances between leaf pages. This enables you to anticipate disk seeks required for sequential database scans. This scans only the internal node pages of the file, not the leaf or overflow pages, and thus reads only 1-5% of the file.",
         doc = "",
-        doc = "This option blocks write access to the database while it scans the tables. It is best to get guidance from [Perforce Support](https://www.perforce.com/support?product=Helix%20Core) before using this option."
+        doc = "> **Note**",
+        doc = ">",
+        doc = "> This option blocks write access to the database while it scans the tables. It is best to get guidance from [Perforce Support](https://www.perforce.com/support?product=Helix%20Core) before using this option."
     )]
     pub fn get_show_histogram(&self) -> bool {
         self.mode.show_histogram
@@ -448,7 +452,9 @@ impl<M> DBStat<Scan<M>> {
         not(feature = "lt2024_1"),
         doc = "Display a histogram showing distances between leaf pages. This enables you to anticipate disk seeks required for sequential database scans. This scans only the internal node pages of the file, not the leaf or overflow pages, and thus reads only 1-5% of the file.",
         doc = "",
-        doc = "This option blocks write access to the database while it scans the tables. It is best to get guidance from [Perforce Support](https://www.perforce.com/support?product=Helix%20Core) before using this option."
+        doc = "> **Note**",
+        doc = ">",
+        doc = "> This option blocks write access to the database while it scans the tables. It is best to get guidance from [Perforce Support](https://www.perforce.com/support?product=Helix%20Core) before using this option."
     )]
     pub fn set_show_histogram(&mut self, v: bool) -> &mut Self {
         self.mode.show_histogram = v;
@@ -467,7 +473,9 @@ impl<M> DBStat<Scan<M>> {
         not(feature = "lt2024_1"),
         doc = "Display a histogram showing distances between leaf pages. This enables you to anticipate disk seeks required for sequential database scans. This scans only the internal node pages of the file, not the leaf or overflow pages, and thus reads only 1-5% of the file.",
         doc = "",
-        doc = "This option blocks write access to the database while it scans the tables. It is best to get guidance from [Perforce Support](https://www.perforce.com/support?product=Helix%20Core) before using this option."
+        doc = "> **Note**",
+        doc = ">",
+        doc = "> This option blocks write access to the database while it scans the tables. It is best to get guidance from [Perforce Support](https://www.perforce.com/support?product=Helix%20Core) before using this option."
     )]
     pub fn show_histogram(mut self, v: bool) -> Self {
         self.set_show_histogram(v);
