@@ -26,6 +26,7 @@ use crate::cmd::Counter;
 use crate::cmd::Counters;
 use crate::cmd::DBSchema;
 use crate::cmd::DBStat;
+use crate::cmd::DBVerify;
 use crate::cmd::Describe;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
@@ -279,6 +280,11 @@ impl P4Cli {
     /// Display size or simple statistics for one or more database tables.
     pub fn cmd_dbstat(&self) -> DBStat {
         DBStat::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Perform low-level verification of the database tables.
+    pub fn cmd_dbverify(&self) -> DBVerify {
+        DBVerify::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Create or edit a client workspace specification and its view.
