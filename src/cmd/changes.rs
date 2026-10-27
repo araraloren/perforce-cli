@@ -96,7 +96,7 @@ pub struct Changes<L = Unselected> {
     global_opts: GlobalOpts,
 
     #[cfg(not(feature = "lt2015_2"))]
-    min_change_list: Option<String>,
+    min_changelist: Option<String>,
 
     include_restricted: bool,
 
@@ -148,7 +148,7 @@ impl Changes<Unselected> {
             bin: self.bin,
             global_opts: self.global_opts,
             #[cfg(not(feature = "lt2015_2"))]
-            min_change_list: self.min_change_list,
+            min_changelist: self.min_changelist,
             include_restricted: self.include_restricted,
             include_integrated: self.include_integrated,
             include_time: self.include_time,
@@ -179,7 +179,7 @@ impl Changes<Unselected> {
             bin: self.bin,
             global_opts: self.global_opts,
             #[cfg(not(feature = "lt2015_2"))]
-            min_change_list: self.min_change_list,
+            min_changelist: self.min_changelist,
             include_restricted: self.include_restricted,
             include_integrated: self.include_integrated,
             include_time: self.include_time,
@@ -359,8 +359,8 @@ impl<L: ExclusiveOption> Changes<L> {
     /// Display only changes where the changelist number is equal to, or
     /// higher than, the specified changelist number.
     #[cfg(not(feature = "lt2015_2"))]
-    pub fn get_min_change_list(&self) -> Option<&String> {
-        self.min_change_list.as_ref()
+    pub fn get_min_changelist(&self) -> Option<&String> {
+        self.min_changelist.as_ref()
     }
 
     /// # Description
@@ -370,8 +370,8 @@ impl<L: ExclusiveOption> Changes<L> {
     /// Display only changes where the changelist number is equal to, or
     /// higher than, the specified changelist number.
     #[cfg(not(feature = "lt2015_2"))]
-    pub fn set_min_change_list(&mut self, v: impl Into<String>) -> &mut Self {
-        self.min_change_list = Some(v.into());
+    pub fn set_min_changelist(&mut self, v: impl Into<String>) -> &mut Self {
+        self.min_changelist = Some(v.into());
         self
     }
 
@@ -382,8 +382,8 @@ impl<L: ExclusiveOption> Changes<L> {
     /// Display only changes where the changelist number is equal to, or
     /// higher than, the specified changelist number.
     #[cfg(not(feature = "lt2015_2"))]
-    pub fn min_change_list(mut self, v: impl Into<String>) -> Self {
-        self.min_change_list = Some(v.into());
+    pub fn min_changelist(mut self, v: impl Into<String>) -> Self {
+        self.min_changelist = Some(v.into());
         self
     }
 
@@ -732,7 +732,7 @@ impl<L: ExclusiveOption> SubCommand for Changes<L> {
             command.arg("--client-case-insensitive");
         }
         #[cfg(not(feature = "lt2015_2"))]
-        if let Some(ref min_change) = self.min_change_list {
+        if let Some(ref min_change) = self.min_changelist {
             command.arg("-e").arg(min_change);
         }
         if self.include_restricted {
@@ -836,8 +836,8 @@ mod tests {
 
     #[cfg(not(feature = "lt2015_2"))]
     #[test]
-    fn min_change_list() {
-        let changes = Changes::new("p4", GlobalOpts::default()).min_change_list("800");
+    fn min_changelist() {
+        let changes = Changes::new("p4", GlobalOpts::default()).min_changelist("800");
         let cmd = changes.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["changes", "-e", "800"]);
     }
@@ -988,7 +988,7 @@ mod tests {
             .include_time(true)
             .filter_user("edk");
         #[cfg(not(feature = "lt2015_2"))]
-        let changes = changes.min_change_list("800");
+        let changes = changes.min_changelist("800");
         #[cfg(not(feature = "lt2017_2"))]
         let changes = changes.reverse_order(true);
         #[cfg(not(feature = "lt2022_2"))]

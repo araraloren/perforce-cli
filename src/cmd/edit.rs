@@ -89,7 +89,7 @@ pub struct Edit<M = Unselected> {
 
     global_opts: GlobalOpts,
 
-    change_list: Option<String>,
+    changelist: Option<String>,
 
     mode: M,
 }
@@ -102,7 +102,7 @@ impl Edit<Unselected> {
         Self {
             bin: bin.into(),
             global_opts,
-            change_list: None,
+            changelist: None,
             mode: Unselected,
         }
     }
@@ -121,7 +121,7 @@ impl Edit<Unselected> {
         Edit {
             bin: self.bin,
             global_opts: self.global_opts,
-            change_list: self.change_list,
+            changelist: self.changelist,
             mode: FileEditMode {
                 keep_workspace: v,
                 preview: false,
@@ -143,7 +143,7 @@ impl Edit<Unselected> {
         Edit {
             bin: self.bin,
             global_opts: self.global_opts,
-            change_list: self.change_list,
+            changelist: self.changelist,
             mode: FileEditMode {
                 keep_workspace: false,
                 preview: v,
@@ -166,7 +166,7 @@ impl Edit<Unselected> {
         Edit {
             bin: self.bin,
             global_opts: self.global_opts,
-            change_list: self.change_list,
+            changelist: self.changelist,
             mode: FileEditMode {
                 keep_workspace: false,
                 preview: false,
@@ -196,7 +196,7 @@ impl Edit<Unselected> {
         Edit {
             bin: self.bin,
             global_opts: self.global_opts,
-            change_list: self.change_list,
+            changelist: self.changelist,
             mode: FileEditMode {
                 keep_workspace: false,
                 preview: false,
@@ -220,7 +220,7 @@ impl Edit<Unselected> {
         Edit {
             bin: self.bin,
             global_opts: self.global_opts,
-            change_list: self.change_list,
+            changelist: self.changelist,
             mode: StreamSpecEditMode,
         }
     }
@@ -555,8 +555,8 @@ impl<M: ExclusiveOption> Edit<M> {
     ///
     /// Opens the files for edit within the specified changelist. If this
     /// option is not provided, the files are linked to the default changelist.
-    pub fn get_change_list(&self) -> Option<&String> {
-        self.change_list.as_ref()
+    pub fn get_changelist(&self) -> Option<&String> {
+        self.changelist.as_ref()
     }
 
     /// # Description
@@ -565,8 +565,8 @@ impl<M: ExclusiveOption> Edit<M> {
     ///
     /// Opens the files for edit within the specified changelist. If this
     /// option is not provided, the files are linked to the default changelist.
-    pub fn set_change_list(&mut self, v: impl Into<String>) -> &mut Self {
-        self.change_list = Some(v.into());
+    pub fn set_changelist(&mut self, v: impl Into<String>) -> &mut Self {
+        self.changelist = Some(v.into());
         self
     }
 
@@ -576,8 +576,8 @@ impl<M: ExclusiveOption> Edit<M> {
     ///
     /// Opens the files for edit within the specified changelist. If this
     /// option is not provided, the files are linked to the default changelist.
-    pub fn change_list(mut self, v: impl Into<String>) -> Self {
-        self.change_list = Some(v.into());
+    pub fn changelist(mut self, v: impl Into<String>) -> Self {
+        self.changelist = Some(v.into());
         self
     }
 }
@@ -588,8 +588,8 @@ impl<M: ExclusiveOption> SubCommand for Edit<M> {
     }
 
     fn inject_local_args(&self, command: &mut Command) {
-        if let Some(change_list) = &self.change_list {
-            command.arg("-c").arg(change_list);
+        if let Some(changelist) = &self.changelist {
+            command.arg("-c").arg(changelist);
         }
 
         self.mode.inject_args(command);
@@ -626,8 +626,8 @@ mod tests {
     }
 
     #[test]
-    fn change_list() {
-        let edit = Edit::new("p4", GlobalOpts::default()).change_list("14");
+    fn changelist() {
+        let edit = Edit::new("p4", GlobalOpts::default()).changelist("14");
         let mut cmd = edit.setup_command("p4");
         cmd.arg("//depot/file.txt");
         assert_eq!(args_of(&cmd), vec!["edit", "-c", "14", "//depot/file.txt"]);
@@ -666,9 +666,9 @@ mod tests {
     }
 
     #[test]
-    fn file_mode_transition_preserves_change_list() {
+    fn file_mode_transition_preserves_changelist() {
         let edit = Edit::new("p4", GlobalOpts::default())
-            .change_list("14")
+            .changelist("14")
             .keep_workspace(true);
         let mut cmd = edit.setup_command("p4");
         cmd.arg("//depot/file.txt");
@@ -705,9 +705,9 @@ mod tests {
 
     #[cfg(not(feature = "lt2019_1"))]
     #[test]
-    fn stream_spec_with_change_list() {
+    fn stream_spec_with_changelist() {
         let edit = Edit::new("p4", GlobalOpts::default())
-            .change_list("14")
+            .changelist("14")
             .edit_stream_spec();
         let cmd = edit.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["edit", "-c", "14", "-So"]);
@@ -715,10 +715,10 @@ mod tests {
 
     #[cfg(not(feature = "lt2019_1"))]
     #[test]
-    fn stream_spec_change_list_after_transition() {
+    fn stream_spec_changelist_after_transition() {
         let edit = Edit::new("p4", GlobalOpts::default())
             .edit_stream_spec()
-            .change_list("14");
+            .changelist("14");
         let cmd = edit.setup_command("p4");
         assert_eq!(args_of(&cmd), vec!["edit", "-c", "14", "-So"]);
     }
@@ -726,7 +726,7 @@ mod tests {
     #[test]
     fn all_options_order() {
         let edit = Edit::new("p4", GlobalOpts::default())
-            .change_list("14")
+            .changelist("14")
             .keep_workspace(true)
             .preview(true)
             .remote_server("origin")
@@ -752,7 +752,7 @@ mod tests {
     #[test]
     fn set_style_with_global_opts() {
         let mut edit = Edit::new("p4", GlobalOpts::default());
-        edit.set_change_list("14");
+        edit.set_changelist("14");
         let mut edit = edit.filetype("binary");
         edit.set_preview(true);
         let mut cmd = edit.setup_command("p4");

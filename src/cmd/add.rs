@@ -17,7 +17,7 @@ pub struct Add {
 
     global_opts: GlobalOpts,
 
-    change_list: Option<String>,
+    changelist: Option<String>,
 
     downgrade: bool,
 
@@ -36,8 +36,8 @@ impl SubCommand for Add {
     }
 
     fn inject_local_args(&self, command: &mut std::process::Command) {
-        if let Some(change_list) = self.change_list.as_ref() {
-            command.arg("-c").arg(change_list);
+        if let Some(changelist) = self.changelist.as_ref() {
+            command.arg("-c").arg(changelist);
         }
         if self.downgrade {
             command.arg("-d");
@@ -197,8 +197,8 @@ impl Add {
     #[cfg_attr(feature = "lt2014_2", doc = "flag is")]
     #[cfg_attr(not(feature = "lt2014_2"), doc = "option is")]
     /// not used, the files are linked to the default changelist.
-    pub fn get_change_list(&self) -> Option<&String> {
-        self.change_list.as_ref()
+    pub fn get_changelist(&self) -> Option<&String> {
+        self.changelist.as_ref()
     }
 
     /// # Description
@@ -209,8 +209,8 @@ impl Add {
     #[cfg_attr(feature = "lt2014_2", doc = "flag is")]
     #[cfg_attr(not(feature = "lt2014_2"), doc = "option is")]
     /// not used, the files are linked to the default changelist.
-    pub fn set_change_list(&mut self, v: impl Into<String>) -> &mut Self {
-        self.change_list = Some(v.into());
+    pub fn set_changelist(&mut self, v: impl Into<String>) -> &mut Self {
+        self.changelist = Some(v.into());
         self
     }
 
@@ -222,8 +222,8 @@ impl Add {
     #[cfg_attr(feature = "lt2014_2", doc = "flag is")]
     #[cfg_attr(not(feature = "lt2014_2"), doc = "option is")]
     /// not used, the files are linked to the default changelist.
-    pub fn change_list(mut self, v: impl Into<String>) -> Self {
-        self.change_list = Some(v.into());
+    pub fn changelist(mut self, v: impl Into<String>) -> Self {
+        self.changelist = Some(v.into());
         self
     }
 
@@ -645,7 +645,7 @@ mod tests {
     #[test]
     fn all_local_options() {
         let mut add = Add::new("p4", GlobalOpts::new());
-        add.set_change_list("42")
+        add.set_changelist("42")
             .set_downgrade(true)
             .set_force_literal_filenames(true)
             .set_skip_ignore(true)
