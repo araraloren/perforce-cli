@@ -26,6 +26,7 @@ pub mod dbschema;
 pub mod dbstat;
 pub mod dbverify;
 pub mod delete;
+pub mod depot;
 pub mod describe;
 pub mod diff;
 pub mod diff2;
@@ -63,6 +64,9 @@ pub use dbschema::DBSchema;
 pub use dbstat::DBStat;
 pub use dbverify::DBVerify;
 pub use delete::Delete;
+pub use depot::Depot;
+#[cfg(not(feature = "lt2015_2"))]
+pub use depot::DepotType;
 pub use describe::Describe;
 pub use diff::Diff;
 pub use diff::DisplayOptions;
