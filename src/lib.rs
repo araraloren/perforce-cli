@@ -29,6 +29,7 @@ use crate::cmd::DBStat;
 use crate::cmd::DBVerify;
 use crate::cmd::Delete;
 use crate::cmd::Depot;
+use crate::cmd::Depots;
 use crate::cmd::Describe;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
@@ -331,6 +332,11 @@ impl P4Cli {
     /// Create, edit, or delete a depot specification.
     pub fn cmd_depot(&self) -> Depot {
         Depot::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Display a list of depots known to the P4 Server.
+    pub fn cmd_depots(&self) -> Depots {
+        Depots::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Display the details of one or more changelists.

@@ -48,7 +48,7 @@ pub enum DepotType {
 
 #[cfg(not(feature = "lt2015_2"))]
 impl DepotType {
-    fn as_str(&self) -> &'static str {
+    pub(crate) fn as_str(&self) -> &'static str {
         match self {
             Self::Local => "local",
             Self::Remote => "remote",
