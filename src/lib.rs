@@ -31,6 +31,8 @@ use crate::cmd::Delete;
 use crate::cmd::Depot;
 use crate::cmd::Depots;
 use crate::cmd::Describe;
+#[cfg(not(feature = "lt2024_2"))]
+use crate::cmd::Diagnostics;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
 use crate::cmd::Edit;
@@ -342,6 +344,12 @@ impl P4Cli {
     /// Display the details of one or more changelists.
     pub fn cmd_describe(&self) -> Describe {
         Describe::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Generate diagnostic data about the P4 Server.
+    #[cfg(not(feature = "lt2024_2"))]
+    pub fn cmd_diagnostics(&self) -> Diagnostics {
+        Diagnostics::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Diff workspace content against depot content, or diff stream specs.

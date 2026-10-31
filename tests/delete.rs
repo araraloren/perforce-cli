@@ -14,80 +14,21 @@
 //! assertions below hold across all supported versions.
 
 use std::io;
-use std::path::PathBuf;
-use std::process::Child;
 
 use perforce_cli::P4Cli;
 use perforce_cli::cmd::Delete;
-use perforce_cli::cmd::SubCommand;
 use perforce_cli::global::GlobalOpts;
-use perforce_cli::spawn::ParameterizedSpawn;
+
+mod common;
+use common::{echo_bin, expect_args, expect_chain, spawned_args};
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Collects the arguments assembled on a [`std::process::Command`] as
-/// strings for easy comparison.
-fn args_of(command: &std::process::Command) -> Vec<String> {
-    command
-        .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect()
-}
-
-/// Asserts the arguments produced by `setup_command`.
-fn expect_args(cmd: &impl SubCommand, expected: &[&str]) {
-    assert_eq!(args_of(&cmd.setup_command("p4")), expected);
-}
-
-/// Asserts that one chained builder expression assembles `expected`.
-///
-/// ```ignore
-/// expect_chain!(["delete", "-n"], p4.cmd_delete().preview(true));
-/// ```
-macro_rules! expect_chain {
-    ([$($e:literal),* $(,)?], $($chain:tt)*) => {{
-        let cmd = $($chain)*;
-        expect_args(&cmd, &[$($e),*]);
-    }};
-}
-
-/// A tiny batch helper that just prints its arguments. `p4 delete` only
-/// appends the subcommand name, flags, changelist numbers, and file names;
-/// none of the samples below contain spaces, so `%*` captures the exact
-/// argv tail.
-fn echo_bin() -> PathBuf {
-    let path = std::env::temp_dir().join("p4cli_delete_echo_args.bat");
-    std::fs::write(&path, "@echo %*\r\n").expect("write echo helper");
-    path
-}
-
-/// Normalizes the echo helper output into logical arguments.
-fn parse_echo(stdout: &[u8]) -> Vec<String> {
-    String::from_utf8_lossy(stdout)
-        .split_whitespace()
-        .map(|s| s.trim_matches('"').to_string())
-        .collect()
-}
-
-/// Actually spawns the echo helper and returns the argv tail it received.
-fn spawned_args<C, I>(cmd: &mut C, input: I) -> Vec<String>
-where
-    C: ParameterizedSpawn<I, Output = Child, Error = io::Error>,
-{
-    let output = cmd
-        .spawn_with(input)
-        .expect("spawn echo helper")
-        .wait_with_output()
-        .expect("wait for echo helper");
-    assert!(output.status.success(), "echo helper exited unsuccessfully");
-    parse_echo(&output.stdout)
-}
-
 /// Starts a builder whose executable is the local echo helper.
 fn echo_delete() -> Delete {
-    Delete::new(echo_bin(), GlobalOpts::new())
+    Delete::new(echo_bin("delete"), GlobalOpts::new())
 }
 
 // Bare form -----------------------------------------------------------------

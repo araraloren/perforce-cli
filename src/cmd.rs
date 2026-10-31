@@ -29,6 +29,8 @@ pub mod delete;
 pub mod depot;
 pub mod depots;
 pub mod describe;
+#[cfg(not(feature = "lt2024_2"))]
+pub mod diagnostics;
 pub mod diff;
 pub mod diff2;
 pub mod edit;
@@ -70,6 +72,8 @@ pub use depot::Depot;
 pub use depot::DepotType;
 pub use depots::Depots;
 pub use describe::Describe;
+#[cfg(not(feature = "lt2024_2"))]
+pub use diagnostics::Diagnostics;
 pub use diff::Diff;
 pub use diff::DisplayOptions;
 pub use diff2::Diff2;

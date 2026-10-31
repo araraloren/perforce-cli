@@ -23,103 +23,25 @@
 //! ```
 
 use std::io;
-use std::path::PathBuf;
-use std::process::{Child, Stdio};
+use std::process::Stdio;
 
 use perforce_cli::P4Cli;
-use perforce_cli::cmd::SubCommand;
 #[cfg(not(feature = "lt2016_2"))]
 use perforce_cli::cmd::client::WorkSpaceType;
 use perforce_cli::cmd::client::{Client, ShelvedHandling};
 use perforce_cli::global::GlobalOpts;
 use perforce_cli::spawn::ParameterizedSpawn;
 
+mod common;
+use common::{echo_bin, expect_args, expect_chain, parse_echo, spawned_args};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Collects the arguments assembled on a [`std::process::Command`] as
-/// strings for easy comparison.
-fn args_of(command: &std::process::Command) -> Vec<String> {
-    command
-        .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect()
-}
-
-/// Asserts the arguments produced by `setup_command` (everything except
-/// the trailing optional/mandatory `name` operand, which is added on
-/// spawn).
-fn expect_args(cmd: &impl SubCommand, expected: &[&str]) {
-    assert_eq!(args_of(&cmd.setup_command("p4")), expected);
-}
-
-/// Asserts that one chained builder expression assembles `expected`.
-///
-/// ```ignore
-/// expect_chain!(["client", "-d", "-f", "-Fs"],
-///               p4.cmd_client().delete().force().keep_shelved());
-/// ```
-macro_rules! expect_chain {
-    ([$($e:literal),* $(,)?], $($chain:tt)*) => {{
-        let cmd = $($chain)*;
-        expect_args(&cmd, &[$($e),*]);
-    }};
-}
-
-/// A tiny batch helper that just prints its arguments. `p4 client` only
-/// appends the subcommand name, flags, and the optional `name`; none of
-/// those contain spaces, so `%*` captures the exact argv tail.
-fn echo_bin() -> PathBuf {
-    let path = std::env::temp_dir().join("p4cli_client_echo_args.bat");
-    std::fs::write(&path, "@echo %*\r\n").expect("write echo helper");
-    path
-}
-
-/// Normalizes the echo helper output into logical arguments.
-fn parse_echo(stdout: &[u8]) -> Vec<String> {
-    // cmd.exe quotes args containing `=` (e.g. `--serverid=X`) when
-    // launching the batch wrapper; those quotes are command-line
-    // escaping, not part of the logical argument, so strip them.
-    String::from_utf8_lossy(stdout)
-        .split_whitespace()
-        .map(|s| s.trim_matches('"').to_string())
-        .collect()
-}
-
-/// Actually spawns the echo helper with one operand (the optional or
-/// mandatory `name`) and returns the argv tail the helper received.
-fn spawned_args<A, C>(cmd: &mut C, input: A) -> Vec<String>
-where
-    C: ParameterizedSpawn<A, Output = Child, Error = io::Error>,
-{
-    let output = cmd
-        .spawn_with(input)
-        .expect("spawn echo helper")
-        .wait_with_output()
-        .expect("wait for echo helper");
-    assert!(output.status.success(), "echo helper exited unsuccessfully");
-    parse_echo(&output.stdout)
-}
-
-/// Actually spawns the echo helper with no operand (`name` defaults to
-/// `P4CLIENT`) and returns the argv tail the helper received.
-fn spawned_args_unit<C>(cmd: &mut C) -> Vec<String>
-where
-    C: ParameterizedSpawn<(), Output = Child, Error = io::Error>,
-{
-    let output = cmd
-        .spawn_with(())
-        .expect("spawn echo helper")
-        .wait_with_output()
-        .expect("wait for echo helper");
-    assert!(output.status.success(), "echo helper exited unsuccessfully");
-    parse_echo(&output.stdout)
-}
-
 /// Starts a builder whose executable is the local echo helper.
 fn echo_client() -> Client {
-    Client::new(echo_bin(), GlobalOpts::new())
+    Client::new(echo_bin("client"), GlobalOpts::new())
 }
 
 // Form 1 -------------------------------------------------------------------
@@ -231,7 +153,7 @@ fn form_1_general() {
     // The trailing `name` operand is optional; it is appended last on
     // spawn, both with the unit parameter and the one-arg parameter.
     let mut cmd = echo_client();
-    assert_eq!(spawned_args_unit(&mut cmd), ["client"]);
+    assert_eq!(spawned_args(&mut cmd, ()), ["client"]);
     let mut cmd = echo_client();
     assert_eq!(spawned_args(&mut cmd, ("ws-name",)), ["client", "ws-name"]);
 }
@@ -569,7 +491,7 @@ fn form_5_switch_stream() {
 
     let mut cmd = echo_client().switch_view_stream("//stream/dev");
     assert_eq!(
-        spawned_args_unit(&mut cmd),
+        spawned_args(&mut cmd, ()),
         ["client", "-s", "-S", "//stream/dev"]
     );
 
@@ -577,12 +499,12 @@ fn form_5_switch_stream() {
     {
         let mut cmd = echo_client().force().switch_view_stream("//stream/dev");
         assert_eq!(
-            spawned_args_unit(&mut cmd),
+            spawned_args(&mut cmd, ()),
             ["client", "-s", "-f", "-S", "//stream/dev"]
         );
         let mut cmd = echo_client().switch_view_stream("//stream/dev").force();
         assert_eq!(
-            spawned_args_unit(&mut cmd),
+            spawned_args(&mut cmd, ()),
             ["client", "-s", "-f", "-S", "//stream/dev"]
         );
     }
@@ -613,7 +535,7 @@ fn form_5_switch_stream() {
 
     let mut cmd = echo_client().stream("//stream/dev").switch_view();
     assert_eq!(
-        spawned_args_unit(&mut cmd),
+        spawned_args(&mut cmd, ()),
         ["client", "-s", "-S", "//stream/dev"]
     );
 
@@ -621,7 +543,7 @@ fn form_5_switch_stream() {
     {
         let mut cmd = echo_client().stream("//stream/dev").switch_view().force();
         assert_eq!(
-            spawned_args_unit(&mut cmd),
+            spawned_args(&mut cmd, ()),
             ["client", "-s", "-f", "-S", "//stream/dev"]
         );
     }
@@ -717,7 +639,7 @@ fn form_7_stdin() {
 
     // Spawn uses piped stdin (`()` parameter) or an explicit `Stdio`.
     let mut cmd = echo_client().stdin();
-    assert_eq!(spawned_args_unit(&mut cmd), ["client", "-i"]);
+    assert_eq!(spawned_args(&mut cmd, ()), ["client", "-i"]);
 
     let mut cmd = echo_client().force().stdin();
     let output = cmd

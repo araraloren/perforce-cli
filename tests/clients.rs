@@ -18,81 +18,21 @@
 //! on the documented injection order `-t -u/--me -e/-E -m -S -a/-s`.
 
 use std::io;
-use std::path::PathBuf;
-use std::process::Child;
 
 use perforce_cli::P4Cli;
-use perforce_cli::cmd::SubCommand;
 use perforce_cli::cmd::clients::Clients;
 use perforce_cli::global::GlobalOpts;
-use perforce_cli::spawn::ParameterizedSpawn;
+
+mod common;
+use common::{echo_bin, expect_args, expect_chain, spawned_args};
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Collects the arguments assembled on a [`std::process::Command`] as
-/// strings for easy comparison.
-fn args_of(command: &std::process::Command) -> Vec<String> {
-    command
-        .get_args()
-        .map(|arg| arg.to_string_lossy().into_owned())
-        .collect()
-}
-
-/// Asserts the arguments produced by `setup_command`.
-fn expect_args(cmd: &impl SubCommand, expected: &[&str]) {
-    assert_eq!(args_of(&cmd.setup_command("p4")), expected);
-}
-
-/// Asserts that one chained builder expression assembles `expected`.
-///
-/// ```ignore
-/// expect_chain!(["clients", "-m", "5"], p4.cmd_clients().limit(5));
-/// ```
-macro_rules! expect_chain {
-    ([$($e:literal),* $(,)?], $($chain:tt)*) => {{
-        let cmd = $($chain)*;
-        expect_args(&cmd, &[$($e),*]);
-    }};
-}
-
-/// A tiny batch helper that just prints its arguments. `p4 clients` only
-/// appends the subcommand name and flags; none of those contain spaces, so
-/// `%*` captures the exact argv tail.
-fn echo_bin() -> PathBuf {
-    let path = std::env::temp_dir().join("p4cli_clients_echo_args.bat");
-    std::fs::write(&path, "@echo %*\r\n").expect("write echo helper");
-    path
-}
-
-/// Normalizes the echo helper output into logical arguments.
-fn parse_echo(stdout: &[u8]) -> Vec<String> {
-    String::from_utf8_lossy(stdout)
-        .split_whitespace()
-        .map(|s| s.trim_matches('"').to_string())
-        .collect()
-}
-
-/// Actually spawns the echo helper and returns the argv tail it received.
-/// `p4 clients` takes no trailing operand, so every form spawns with the
-/// unit parameter.
-fn spawned_args_unit<C>(cmd: &mut C) -> Vec<String>
-where
-    C: ParameterizedSpawn<(), Output = Child, Error = io::Error>,
-{
-    let output = cmd
-        .spawn_with(())
-        .expect("spawn echo helper")
-        .wait_with_output()
-        .expect("wait for echo helper");
-    assert!(output.status.success(), "echo helper exited unsuccessfully");
-    parse_echo(&output.stdout)
-}
-
 /// Starts a builder whose executable is the local echo helper.
 fn echo_clients() -> Clients {
-    Clients::new(echo_bin(), GlobalOpts::new())
+    Clients::new(echo_bin("clients"), GlobalOpts::new())
 }
 
 // Form 1 -------------------------------------------------------------------
@@ -108,7 +48,7 @@ fn form_1_bare() {
     expect_chain!(["clients"], p4.cmd_workspaces());
 
     let mut cmd = echo_clients();
-    assert_eq!(spawned_args_unit(&mut cmd), ["clients"]);
+    assert_eq!(spawned_args(&mut cmd, ()), ["clients"]);
 }
 
 // Form 2 -------------------------------------------------------------------
@@ -153,7 +93,7 @@ fn form_2_single_options() {
 
     // Each single-option form spawns.
     let mut cmd = echo_clients().limit(5);
-    assert_eq!(spawned_args_unit(&mut cmd), ["clients", "-m", "5"]);
+    assert_eq!(spawned_args(&mut cmd, ()), ["clients", "-m", "5"]);
 }
 
 // Form 3 -------------------------------------------------------------------
@@ -401,7 +341,7 @@ fn form_3_selection_orders() {
         .limit(5)
         .stream("//stream/main")
         .server_id("edge.1667");
-    assert_eq!(spawned_args_unit(&mut cmd), full);
+    assert_eq!(spawned_args(&mut cmd, ()), full);
 }
 
 // Form 4 -------------------------------------------------------------------
@@ -417,7 +357,7 @@ fn form_4_unloaded() {
     expect_chain!(["clients", "-U"], p4.cmd_workspaces().unloaded());
 
     let mut cmd = echo_clients().unloaded();
-    assert_eq!(spawned_args_unit(&mut cmd), ["clients", "-U"]);
+    assert_eq!(spawned_args(&mut cmd, ()), ["clients", "-U"]);
 }
 
 // Rejected combinations -----------------------------------------------------
