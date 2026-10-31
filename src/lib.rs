@@ -36,6 +36,7 @@ use crate::cmd::Diagnostics;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
 use crate::cmd::Dirs;
+use crate::cmd::DiskSpace;
 use crate::cmd::Edit;
 use crate::cmd::FileLog;
 use crate::cmd::Print;
@@ -366,6 +367,19 @@ impl P4Cli {
     /// List the subdirectories of the specified depot directories.
     pub fn cmd_dirs(&self) -> Dirs {
         Dirs::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Display disk space information on the server.
+    pub fn cmd_diskspace(&self) -> DiskSpace {
+        DiskSpace::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Display disk space information on the server.
+    ///
+    /// This is an alias for [`Self::cmd_diskspace`], corresponding to the `p4
+    /// df` command.
+    pub fn cmd_df(&self) -> DiskSpace {
+        DiskSpace::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Open files in a client workspace for edit.
