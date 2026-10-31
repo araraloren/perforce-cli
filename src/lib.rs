@@ -38,6 +38,7 @@ use crate::cmd::Diff2;
 use crate::cmd::Dirs;
 use crate::cmd::DiskSpace;
 use crate::cmd::Edit;
+use crate::cmd::Export;
 use crate::cmd::FileLog;
 use crate::cmd::Print;
 use crate::cmd::Sync;
@@ -385,6 +386,15 @@ impl P4Cli {
     /// Open files in a client workspace for edit.
     pub fn cmd_edit(&self) -> Edit {
         Edit::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Extract journal or checkpoint records.
+    ///
+    /// The returned builder starts with neither `-c` nor `-j` selected; call
+    /// `checkpoint` (`-c`) or `journal` (`-j`) to select one, since only
+    /// those states can be spawned.
+    pub fn cmd_export(&self) -> Export {
+        Export::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Print detailed information about the revisions of files.
