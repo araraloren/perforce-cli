@@ -33,6 +33,7 @@ pub mod describe;
 pub mod diagnostics;
 pub mod diff;
 pub mod diff2;
+pub mod dirs;
 pub mod edit;
 pub mod filelog;
 pub mod print;
@@ -77,6 +78,10 @@ pub use diagnostics::Diagnostics;
 pub use diff::Diff;
 pub use diff::DisplayOptions;
 pub use diff2::Diff2;
+pub use dirs::Dirs;
+#[cfg(not(feature = "lt2022_2"))]
+pub use dirs::StreamView;
+pub use dirs::WorkspaceView;
 pub use edit::Edit;
 pub use filelog::FileLog;
 pub use print::Print;

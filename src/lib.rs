@@ -35,6 +35,7 @@ use crate::cmd::Describe;
 use crate::cmd::Diagnostics;
 use crate::cmd::Diff;
 use crate::cmd::Diff2;
+use crate::cmd::Dirs;
 use crate::cmd::Edit;
 use crate::cmd::FileLog;
 use crate::cmd::Print;
@@ -360,6 +361,11 @@ impl P4Cli {
     /// Compare the content at two depot paths, or compare two stream specs.
     pub fn cmd_diff2(&self) -> Diff2 {
         Diff2::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// List the subdirectories of the specified depot directories.
+    pub fn cmd_dirs(&self) -> Dirs {
+        Dirs::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Open files in a client workspace for edit.
