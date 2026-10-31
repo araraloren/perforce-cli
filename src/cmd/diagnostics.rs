@@ -142,11 +142,11 @@ impl<J: ExclusiveOption> ExclusiveOption for WithBasic<J> {
 ///
 #[cfg_attr(
     feature = "lt2025_2",
-    doc = "Selected by `-l`, `-s`, or `-a`; [`Diagnostics::advance`] and [`Diagnostics::advance_with_basic`] enter this form explicitly."
+    doc = "Selected by `-l`, `-s`, or `-a`; [`Diagnostics::advance_with_basic`] enters this form explicitly."
 )]
 #[cfg_attr(
     not(feature = "lt2025_2"),
-    doc = "Selected by `-l`, `-s`, `-p`, `-t`, or `-a`; [`Diagnostics::advance`] and [`Diagnostics::advance_with_basic`] enter this form explicitly."
+    doc = "Selected by `-l`, `-s`, `-p`, `-t`, or `-a`; [`Diagnostics::advance_with_basic`] enters this form explicitly."
 )]
 ///
 /// The `S` type parameter tracks the [`Strace`] state and the `B` type
@@ -312,20 +312,14 @@ impl Diagnostics<Unselected> {
 
     /// # Description
     ///
-    #[cfg_attr(feature = "lt2025_2", doc = "-L limit")]
-    #[cfg_attr(not(feature = "lt2025_2"), doc = "-J [-L limit]")]
+    /// -J [-L limit]
     ///
-    #[cfg_attr(
-        feature = "lt2025_2",
-        doc = "Caps the journal and log copy, which the basic form always includes, at the last `limit` bytes."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2025_2"),
-        doc = "Downloads a copy of the current journal file and log file, using the configured names of these files."
-    )]
+    /// Downloads a copy of the current journal file and log file, using the
+    /// configured names of these files.
     ///
     /// Enters the [`Basic`] form of the command with the [`Journal`] state
     /// selected.
+    #[cfg(not(feature = "lt2025_2"))]
     pub fn journal(self) -> Diagnostics<Basic<Journal>> {
         Diagnostics {
             bin: self.bin,
@@ -340,22 +334,24 @@ impl Diagnostics<Unselected> {
         }
     }
 
-    /// Enters the [`Advance`] form of the command with no local options
-    /// selected.
-    pub fn advance(self) -> Diagnostics<Advance<Unselected, Unselected>> {
+    /// # Description
+    ///
+    /// -L limit
+    ///
+    /// The basic form always includes a copy of the journal and log files;
+    /// this caps their download at the last `limit` bytes.
+    ///
+    /// Enters the [`Journal`] state with the journal and log copy limited to
+    /// `limit`.
+    #[cfg(feature = "lt2025_2")]
+    pub fn limit(self, limit: impl Into<String>) -> Diagnostics<Basic<Journal>> {
         Diagnostics {
             bin: self.bin,
             global_opts: self.global_opts,
-            #[cfg(not(feature = "lt2025_2"))]
-            uncompressed: self.uncompressed,
-            mode: Advance {
-                run_lsof: false,
-                #[cfg(not(feature = "lt2025_2"))]
-                run_ps: false,
-                #[cfg(not(feature = "lt2025_2"))]
-                run_top: false,
-                strace: Unselected,
-                basic: Unselected,
+            mode: Basic {
+                journal: Journal {
+                    limit: Some(limit.into()),
+                },
             },
         }
     }
@@ -583,17 +579,14 @@ impl<J: ExclusiveOption> Diagnostics<Basic<J>> {
 impl Diagnostics<Basic<Unselected>> {
     /// # Description
     ///
-    #[cfg_attr(feature = "lt2025_2", doc = "-L limit")]
-    #[cfg_attr(not(feature = "lt2025_2"), doc = "-J [-L limit]")]
+    /// -J [-L limit]
     ///
-    #[cfg_attr(
-        feature = "lt2025_2",
-        doc = "Caps the journal and log copy, which the basic form always includes, at the last `limit` bytes."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2025_2"),
-        doc = "Downloads a copy of the current journal file and log file, using the configured names of these files."
-    )]
+    /// Downloads a copy of the current journal file and log file, using the
+    /// configured names of these files.
+    ///
+    /// Enters the [`Basic`] form of the command with the [`Journal`] state
+    /// selected.
+    #[cfg(not(feature = "lt2025_2"))]
     pub fn journal(self) -> Diagnostics<Basic<Journal>> {
         Diagnostics {
             bin: self.bin,
@@ -610,22 +603,38 @@ impl Diagnostics<Basic<Unselected>> {
 
     /// # Description
     ///
-    #[cfg_attr(feature = "lt2025_2", doc = "-L limit")]
-    #[cfg_attr(not(feature = "lt2025_2"), doc = "-J [-L limit]")]
+    /// -J [-L limit]
     ///
-    #[cfg_attr(
-        feature = "lt2025_2",
-        doc = "Caps the journal and log copy, which the basic form always includes, at the last `limit` bytes."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2025_2"),
-        doc = "Downloads a copy of the current journal file and log file, using the configured names of these files."
-    )]
+    /// Downloads a copy of the current journal file and log file, using the
+    /// configured names of these files.
     ///
     /// Enters the [`Basic`] form of the command with the [`Journal`] state
     /// selected and the download limited to `limit`.
+    #[cfg(not(feature = "lt2025_2"))]
     pub fn journal_with(self, limit: impl Into<String>) -> Diagnostics<Basic<Journal>> {
         self.journal().limit(limit)
+    }
+
+    /// # Description
+    ///
+    /// -L limit
+    ///
+    /// The basic form always includes a copy of the journal and log files;
+    /// this caps their download at the last `limit` bytes.
+    ///
+    /// Enters the [`Journal`] state with the journal and log copy limited to
+    /// `limit`.
+    #[cfg(feature = "lt2025_2")]
+    pub fn limit(self, limit: impl Into<String>) -> Diagnostics<Basic<Journal>> {
+        Diagnostics {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: Basic {
+                journal: Journal {
+                    limit: Some(limit.into()),
+                },
+            },
+        }
     }
 }
 
@@ -890,19 +899,13 @@ impl<S: ExclusiveOption> Diagnostics<Advance<S, Unselected>> {
 impl<S: ExclusiveOption> Diagnostics<Advance<S, WithBasic<Unselected>>> {
     /// # Description
     ///
-    #[cfg_attr(feature = "lt2025_2", doc = "-L limit")]
-    #[cfg_attr(not(feature = "lt2025_2"), doc = "-J [-L limit]")]
+    /// -J [-L limit]
     ///
-    #[cfg_attr(
-        feature = "lt2025_2",
-        doc = "Caps the journal and log copy, which is included with the basic diagnostic files, at the last `limit` bytes."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2025_2"),
-        doc = "Downloads a copy of the current journal file and log file, using the configured names of these files."
-    )]
+    /// Downloads a copy of the current journal file and log file, using the
+    /// configured names of these files.
     ///
     /// Transitions this command to the [`Journal`] state.
+    #[cfg(not(feature = "lt2025_2"))]
     pub fn journal(self) -> Diagnostics<Advance<S, WithBasic<Journal>>> {
         Diagnostics {
             bin: self.bin,
@@ -925,25 +928,45 @@ impl<S: ExclusiveOption> Diagnostics<Advance<S, WithBasic<Unselected>>> {
 
     /// # Description
     ///
-    #[cfg_attr(feature = "lt2025_2", doc = "-L limit")]
-    #[cfg_attr(not(feature = "lt2025_2"), doc = "-J [-L limit]")]
+    /// -J [-L limit]
     ///
-    #[cfg_attr(
-        feature = "lt2025_2",
-        doc = "Caps the journal and log copy, which is included with the basic diagnostic files, at the last `limit` bytes."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2025_2"),
-        doc = "Downloads a copy of the current journal file and log file, using the configured names of these files."
-    )]
+    /// Downloads a copy of the current journal file and log file, using the
+    /// configured names of these files.
     ///
     /// Transitions this command to the [`Journal`] state with the download
     /// limited to `limit`.
+    #[cfg(not(feature = "lt2025_2"))]
     pub fn journal_with(
         self,
         limit: impl Into<String>,
     ) -> Diagnostics<Advance<S, WithBasic<Journal>>> {
         self.journal().limit(limit)
+    }
+
+    /// # Description
+    ///
+    /// -L limit
+    ///
+    /// The basic diagnostic files always include a copy of the journal and
+    /// log files; this caps their download at the last `limit` bytes.
+    ///
+    /// Transitions this command to the [`Journal`] state with the journal and
+    /// log copy limited to `limit`.
+    #[cfg(feature = "lt2025_2")]
+    pub fn limit(self, limit: impl Into<String>) -> Diagnostics<Advance<S, WithBasic<Journal>>> {
+        Diagnostics {
+            bin: self.bin,
+            global_opts: self.global_opts,
+            mode: Advance {
+                run_lsof: self.mode.run_lsof,
+                strace: self.mode.strace,
+                basic: WithBasic {
+                    journal: Journal {
+                        limit: Some(limit.into()),
+                    },
+                },
+            },
+        }
     }
 }
 
@@ -1162,9 +1185,12 @@ mod tests {
 
     #[test]
     fn journal_with_limit() {
+        #[cfg(not(feature = "lt2025_2"))]
         let cmd = Diagnostics::new("p4", GlobalOpts::new())
-            .journal()
-            .limit("10m");
+            .basic()
+            .journal_with("10m");
+        #[cfg(feature = "lt2025_2")]
+        let cmd = Diagnostics::new("p4", GlobalOpts::new()).limit("10m");
 
         assert_eq!(cmd.get_limit(), Some("10m"));
 
@@ -1209,9 +1235,14 @@ mod tests {
 
     #[test]
     fn advance_with_basic_journal_limit() {
+        #[cfg(not(feature = "lt2025_2"))]
         let cmd = Diagnostics::new("p4", GlobalOpts::new())
             .advance_with_basic()
             .journal()
+            .limit("10m");
+        #[cfg(feature = "lt2025_2")]
+        let cmd = Diagnostics::new("p4", GlobalOpts::new())
+            .advance_with_basic()
             .limit("10m");
 
         assert_eq!(cmd.get_limit(), Some("10m"));
@@ -1246,8 +1277,7 @@ mod tests {
     fn all_advance_options_in_syntax_order() {
         let cmd = Diagnostics::new("p4", GlobalOpts::new())
             .uncompressed(true)
-            .advance()
-            .run_lsof(true)
+            .run_lsof()
             .run_ps(true)
             .run_top(true)
             .run_strace_with(15);

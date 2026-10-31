@@ -60,31 +60,25 @@ fn basic_form() {
 }
 
 // Journal -------------------------------------------------------------------
-// 2024.2 / 2025.1: `diagnostics [-L limit]` (the journal and log copy are
-// always included); 2025.2+: `diagnostics [-J [-L limit]]`.
+// 2024.2 / 2025.1: `diagnostics [-L limit]` — the journal and log copy are
+// always included in the basic form, so only `-L limit` exists and it is the
+// entry point into the journal state.
+// 2025.2+: `diagnostics [-J [-L limit]]` — `journal()`/`journal_with()` select
+// `-J`, which does not exist before 2025.2.
 
+#[cfg(not(feature = "lt2025_2"))]
 #[test]
 fn journal_form() {
     let p4 = P4Cli::default();
 
-    #[cfg(not(feature = "lt2025_2"))]
     expect_chain!(["diagnostics", "-J"], p4.cmd_diagnostics().journal());
-    #[cfg(feature = "lt2025_2")]
-    expect_chain!(["diagnostics"], p4.cmd_diagnostics().journal());
-
-    #[cfg(not(feature = "lt2025_2"))]
     expect_chain!(
         ["diagnostics", "-J"],
         p4.cmd_diagnostics().basic().journal()
     );
-    #[cfg(feature = "lt2025_2")]
-    expect_chain!(["diagnostics"], p4.cmd_diagnostics().basic().journal());
 
     let mut cmd = echo_diagnostics().journal();
-    #[cfg(not(feature = "lt2025_2"))]
     assert_eq!(spawned_args(&mut cmd, ()), ["diagnostics", "-J"]);
-    #[cfg(feature = "lt2025_2")]
-    assert_eq!(spawned_args(&mut cmd, ()), ["diagnostics"]);
 }
 
 #[test]
@@ -99,7 +93,7 @@ fn journal_with_limit() {
     #[cfg(feature = "lt2025_2")]
     expect_chain!(
         ["diagnostics", "-L", "10m"],
-        p4.cmd_diagnostics().basic().journal_with("10m")
+        p4.cmd_diagnostics().limit("10m")
     );
 
     #[cfg(not(feature = "lt2025_2"))]
@@ -110,11 +104,14 @@ fn journal_with_limit() {
     #[cfg(feature = "lt2025_2")]
     expect_chain!(
         ["diagnostics", "-L", "2g"],
-        p4.cmd_diagnostics().journal().limit("2g")
+        p4.cmd_diagnostics().basic().limit("2g")
     );
 
-    // `journal_with` accepts anything that converts into a `String`.
+    // The limit accepts anything that converts into a `String`.
+    #[cfg(not(feature = "lt2025_2"))]
     let mut cmd = echo_diagnostics().basic().journal_with(String::from("10m"));
+    #[cfg(feature = "lt2025_2")]
+    let mut cmd = echo_diagnostics().limit(String::from("10m"));
     #[cfg(not(feature = "lt2025_2"))]
     assert_eq!(
         spawned_args(&mut cmd, ()),
@@ -126,9 +123,13 @@ fn journal_with_limit() {
 
 #[test]
 fn journal_limit_accessors() {
+    #[cfg(not(feature = "lt2025_2"))]
     let mut cmd = Diagnostics::new("p4", GlobalOpts::new())
         .basic()
         .journal_with("10m");
+    #[cfg(feature = "lt2025_2")]
+    let mut cmd = Diagnostics::new("p4", GlobalOpts::new()).limit("10m");
+
     assert_eq!(cmd.get_limit(), Some("10m"));
 
     cmd.set_limit("1t");
@@ -209,30 +210,19 @@ fn uncompressed_flag() {
 
 // Advance form --------------------------------------------------------------
 // Every advance option is injectable in the documented order
-// `-l -s[--strace-runtime] -p -t -a[-J[-L]]`.
-
-#[test]
-fn advance_form() {
-    let p4 = P4Cli::default();
-
-    expect_chain!(["diagnostics"], p4.cmd_diagnostics().advance());
-
-    let mut cmd = echo_diagnostics().advance();
-    assert_eq!(spawned_args(&mut cmd, ()), ["diagnostics"]);
-}
+// `-l -s[--strace-runtime] -p -t -a[-J[-L]]`. There is no empty advance
+// transition: entering any advance-only option (or `-a`) assembles the same
+// command line as the basic form until that option is selected.
 
 #[test]
 fn lsof_form() {
     let p4 = P4Cli::default();
 
     expect_chain!(["diagnostics", "-l"], p4.cmd_diagnostics().run_lsof());
-    expect_chain!(
-        ["diagnostics", "-l"],
-        p4.cmd_diagnostics().advance().run_lsof(true)
-    );
+    // Once in the advance state, the boolean setter can toggle `-l` off again.
     expect_chain!(
         ["diagnostics"],
-        p4.cmd_diagnostics().advance().run_lsof(false)
+        p4.cmd_diagnostics().run_lsof().run_lsof(false)
     );
 
     let mut cmd = Diagnostics::new("p4", GlobalOpts::new()).run_lsof();
@@ -252,10 +242,8 @@ fn ps_form() {
     let p4 = P4Cli::default();
 
     expect_chain!(["diagnostics", "-p"], p4.cmd_diagnostics().run_ps());
-    expect_chain!(
-        ["diagnostics", "-p"],
-        p4.cmd_diagnostics().advance().run_ps(true)
-    );
+    // Once in the advance state, the boolean setter can toggle `-p` off again.
+    expect_chain!(["diagnostics"], p4.cmd_diagnostics().run_ps().run_ps(false));
 
     let mut cmd = Diagnostics::new("p4", GlobalOpts::new()).run_ps();
     assert!(cmd.get_run_ps());
@@ -271,9 +259,10 @@ fn top_form() {
     let p4 = P4Cli::default();
 
     expect_chain!(["diagnostics", "-t"], p4.cmd_diagnostics().run_top());
+    // Once in the advance state, the boolean setter can toggle `-t` off again.
     expect_chain!(
-        ["diagnostics", "-t"],
-        p4.cmd_diagnostics().advance().run_top(true)
+        ["diagnostics"],
+        p4.cmd_diagnostics().run_top().run_top(false)
     );
 
     let mut cmd = Diagnostics::new("p4", GlobalOpts::new()).run_top();
@@ -289,10 +278,6 @@ fn strace_form() {
     let p4 = P4Cli::default();
 
     expect_chain!(["diagnostics", "-s"], p4.cmd_diagnostics().run_strace());
-    expect_chain!(
-        ["diagnostics", "-s"],
-        p4.cmd_diagnostics().advance().run_strace()
-    );
     // The `-l` selection survives the transition to `-s`.
     expect_chain!(
         ["diagnostics", "-l", "-s"],
@@ -314,7 +299,7 @@ fn strace_runtime_option() {
     );
     expect_chain!(
         ["diagnostics", "-s", "--strace-runtime", "15"],
-        p4.cmd_diagnostics().advance().run_strace_with(15)
+        p4.cmd_diagnostics().run_strace().strace_runtime(15)
     );
     expect_chain!(
         ["diagnostics", "-l", "-s", "--strace-runtime", "15"],
@@ -350,10 +335,6 @@ fn advance_with_basic_form() {
         p4.cmd_diagnostics().advance_with_basic()
     );
     expect_chain!(
-        ["diagnostics", "-a"],
-        p4.cmd_diagnostics().advance().with_basic()
-    );
-    expect_chain!(
         ["diagnostics", "-l", "-a"],
         p4.cmd_diagnostics().run_lsof().with_basic()
     );
@@ -375,11 +356,6 @@ fn advance_with_basic_journal() {
         ["diagnostics", "-a", "-J"],
         p4.cmd_diagnostics().advance_with_basic().journal()
     );
-    #[cfg(feature = "lt2025_2")]
-    expect_chain!(
-        ["diagnostics", "-a"],
-        p4.cmd_diagnostics().advance_with_basic().journal()
-    );
 
     #[cfg(not(feature = "lt2025_2"))]
     expect_chain!(
@@ -392,15 +368,17 @@ fn advance_with_basic_journal() {
     #[cfg(feature = "lt2025_2")]
     expect_chain!(
         ["diagnostics", "-l", "-a", "-L", "10m"],
-        p4.cmd_diagnostics()
-            .run_lsof()
-            .with_basic()
-            .journal_with("10m")
+        p4.cmd_diagnostics().run_lsof().with_basic().limit("10m")
     );
 
+    #[cfg(not(feature = "lt2025_2"))]
     let mut cmd = Diagnostics::new("p4", GlobalOpts::new())
         .advance_with_basic()
         .journal_with("2g");
+    #[cfg(feature = "lt2025_2")]
+    let mut cmd = Diagnostics::new("p4", GlobalOpts::new())
+        .advance_with_basic()
+        .limit("2g");
     assert_eq!(cmd.get_limit(), Some("2g"));
 
     cmd.set_limit("512k");
@@ -411,10 +389,13 @@ fn advance_with_basic_journal() {
     #[cfg(feature = "lt2025_2")]
     expect_args(&cmd, &["diagnostics", "-a", "-L", "512k"]);
 
+    #[cfg(not(feature = "lt2025_2"))]
     let mut cmd = echo_diagnostics()
         .run_strace()
         .with_basic()
         .journal_with("1g");
+    #[cfg(feature = "lt2025_2")]
+    let mut cmd = echo_diagnostics().run_strace().with_basic().limit("1g");
     #[cfg(not(feature = "lt2025_2"))]
     assert_eq!(
         spawned_args(&mut cmd, ()),
@@ -451,8 +432,7 @@ fn all_options_in_syntax_order() {
         ],
         p4.cmd_diagnostics()
             .uncompressed(true)
-            .advance()
-            .run_lsof(true)
+            .run_lsof()
             .run_strace_with(25)
             .run_ps(true)
             .run_top(true)
@@ -478,8 +458,7 @@ fn all_options_in_syntax_order() {
             "2g"
         ],
         p4.cmd_diagnostics()
-            .advance()
-            .with_basic()
+            .advance_with_basic()
             .journal_with("2g")
             .run_top(true)
             .run_ps(true)
@@ -497,11 +476,10 @@ fn all_options_in_syntax_order() {
     expect_chain!(
         ["diagnostics", "-l", "-s", "-a", "-L", "2g"],
         p4.cmd_diagnostics()
-            .advance()
-            .run_lsof(true)
+            .run_lsof()
             .run_strace()
             .with_basic()
-            .journal_with("2g")
+            .limit("2g")
     );
 }
 
@@ -519,9 +497,7 @@ fn global_options_precede_subcommand() {
     let basic = Diagnostics::new("p4", global_opts.clone()).basic();
     expect_args(&basic, &["-p", "localhost:1666", "-q", "diagnostics"]);
 
-    let advance = Diagnostics::new("p4", global_opts.clone())
-        .advance()
-        .run_lsof(true);
+    let advance = Diagnostics::new("p4", global_opts.clone()).run_lsof();
     expect_args(
         &advance,
         &["-p", "localhost:1666", "-q", "diagnostics", "-l"],
@@ -543,6 +519,14 @@ fn global_options_precede_subcommand() {
             "-L",
             "10m",
         ],
+    );
+
+    #[cfg(feature = "lt2025_2")]
+    let journal = Diagnostics::new("p4", global_opts).limit("10m");
+    #[cfg(feature = "lt2025_2")]
+    expect_args(
+        &journal,
+        &["-p", "localhost:1666", "-q", "diagnostics", "-L", "10m"],
     );
 }
 
@@ -566,19 +550,27 @@ fn bin_accessors() {
 // compile; they are kept as executable documentation of the type-state
 // rules. Uncomment any line to verify it is rejected.
 //
-// // The command form is selected once: `basic`/`journal` and
-// // `advance`/`run_*` cannot be mixed.
-// let _ = P4Cli::default().cmd_diagnostics().advance().basic();
-// let _ = P4Cli::default().cmd_diagnostics().journal().advance();
+// // The command form is selected once: `basic`/`journal` and `run_*` cannot
+// // be mixed.
 // let _ = P4Cli::default().cmd_diagnostics().run_lsof().basic();
+// let _ = P4Cli::default().cmd_diagnostics().journal().run_lsof();
 //
-// // `-a` is entered once, and journal state only exists inside it.
+// // `-a` is entered once, and the journal state only exists inside it.
 // let _ = P4Cli::default().cmd_diagnostics().advance_with_basic().with_basic();
 // let _ = P4Cli::default().cmd_diagnostics().journal().journal();
+//
+// // `journal()`/`journal_with()` name `-J`, which exists only in 2025.2+.
+// let _ = P4Cli::default().cmd_diagnostics().journal();
+// let _ = P4Cli::default().cmd_diagnostics().basic().journal();
+// let _ = P4Cli::default().cmd_diagnostics().advance_with_basic().journal();
+//
+// // `limit(...)` is the pre-2025.2 journal entry point and is rejected
+// // afterwards.
+// let _ = P4Cli::default().cmd_diagnostics().limit("1g");
+// let _ = P4Cli::default().cmd_diagnostics().basic().limit("1g");
 // let _ = P4Cli::default().cmd_diagnostics().advance_with_basic().limit("1g");
 //
 // // `--strace-runtime` requires the `-s` state.
-// let _ = P4Cli::default().cmd_diagnostics().advance().strace_runtime(30);
 // let _ = P4Cli::default().cmd_diagnostics().run_lsof().strace_runtime(30);
 //
 // // `-p`, `-t`, `-j`, `-D`, and `--strace-runtime` are rejected by
