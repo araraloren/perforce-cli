@@ -1679,7 +1679,7 @@ pub enum Type {
 }
 
 impl Type {
-    fn to_str(&self) -> &'static str {
+    fn as_str(&self) -> &'static str {
         match self {
             Type::Extensions => "extensions",
             Type::Configs => "configs",
@@ -1713,7 +1713,7 @@ impl ExclusiveOption for List {
         command.arg("--list");
 
         if let Some(ty) = &self.ty {
-            command.arg("--type").arg(ty.to_str());
+            command.arg("--type").arg(ty.as_str());
         }
 
         #[cfg(not(feature = "lt2022_2"))]
