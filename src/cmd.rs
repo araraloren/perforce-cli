@@ -37,6 +37,8 @@ pub mod dirs;
 pub mod diskspace;
 pub mod edit;
 pub mod export;
+#[cfg(not(feature = "lt2019_1"))]
+pub mod extension;
 pub mod filelog;
 pub mod print;
 pub mod sync;
@@ -95,6 +97,8 @@ pub use export::Export;
 pub use export::Format;
 pub use export::Journal;
 pub use export::RawJournal;
+#[cfg(not(feature = "lt2019_1"))]
+pub use extension::ExtensionEntry;
 pub use filelog::FileLog;
 pub use print::Print;
 pub use sync::Sync;

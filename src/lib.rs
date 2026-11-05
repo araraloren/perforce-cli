@@ -39,6 +39,8 @@ use crate::cmd::Dirs;
 use crate::cmd::DiskSpace;
 use crate::cmd::Edit;
 use crate::cmd::Export;
+#[cfg(not(feature = "lt2019_1"))]
+use crate::cmd::ExtensionEntry;
 use crate::cmd::FileLog;
 use crate::cmd::Print;
 use crate::cmd::Sync;
@@ -395,6 +397,16 @@ impl P4Cli {
     /// those states can be spawned.
     pub fn cmd_export(&self) -> Export {
         Export::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Manage the installation, versioning, and configuration of extensions.
+    ///
+    /// The returned entry selects the operation to perform, such as
+    /// `install` (`--install`), `configure` (`--configure`), or `list`
+    /// (`--list`).
+    #[cfg(not(feature = "lt2019_1"))]
+    pub fn cmd_extension(&self) -> ExtensionEntry {
+        ExtensionEntry::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Print detailed information about the revisions of files.
