@@ -334,17 +334,56 @@ impl ExtensionEntry {
         doc = "",
         doc = "For an extension to be active, an extension must have a global configuration and at least one instance configuration."
     )]
-    pub fn list(self) -> Extension<List> {
+    pub fn list(self, ty: Type) -> Extension<List> {
         Extension {
             bin: self.bin,
             global_opts: self.global_opts,
             op: List {
-                ty: None,
+                ty,
 
                 #[cfg(not(feature = "lt2022_2"))]
                 path: None,
             },
         }
+    }
+
+    /// Lists the installed extensions (`--list --type extensions`).
+    ///
+    /// Shorthand for [`list`](Self::list)`([Type::Extensions])`.
+    pub fn list_extensions(self) -> Extension<List> {
+        self.list(Type::Extensions)
+    }
+
+    /// Lists both global and instance configurations
+    /// (`--list --type configs`).
+    ///
+    /// Shorthand for [`list`](Self::list)`([Type::Configs])`.
+    pub fn list_configs(self) -> Extension<List> {
+        self.list(Type::Configs)
+    }
+
+    /// Lists global configurations (`--list --type global`).
+    ///
+    /// Shorthand for [`list`](Self::list)`([Type::Global])`.
+    #[cfg(not(feature = "lt2020_1"))]
+    pub fn list_global(self) -> Extension<List> {
+        self.list(Type::Global)
+    }
+
+    /// Lists instance configurations (`--list --type instance`).
+    ///
+    /// Shorthand for [`list`](Self::list)`([Type::Instance])`.
+    #[cfg(not(feature = "lt2020_1"))]
+    pub fn list_instance(self) -> Extension<List> {
+        self.list(Type::Instance)
+    }
+
+    /// Lists the installed certificates (`--list --type certs`).
+    ///
+    /// Shorthand for [`list`](Self::list)`([Type::Certs])`.
+    #[cfg(not(feature = "lt2022_2"))]
+    pub fn list_certs(self) -> Extension<List> {
+        self.list(Type::Certs)
     }
 }
 
@@ -1582,6 +1621,45 @@ impl<M: ExclusiveOption> Extension<Configure<M>> {
     }
 }
 
+impl ParameterizedSpawn<(Stdio,)> for Extension<Configure<Stdin>> {
+    type Output = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 extension --configure extFQN -i` with the given standard
+    /// input configuration and piped standard output and error streams; use
+    /// the returned [`Child`] handle to wait for it or interact with it.
+    ///
+    /// Pass `Stdio::piped()` to obtain a writable `child.stdin` handle and
+    /// feed the extension definition into it; pass `Stdio::inherit()` to
+    /// read the definition from the spawning process's own standard input.
+    fn spawn_with(&mut self, (stdio,): (Stdio,)) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
+            .stdin(stdio)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+    }
+}
+
+impl ParameterizedSpawn<(Stdio,)> for Extension<Configure<Stdout>> {
+    type Output = Child;
+    type Error = std::io::Error;
+
+    /// Spawns `p4 extension --configure extFQN -o` with the given standard
+    /// output configuration and piped standard error stream; use the
+    /// returned [`Child`] handle to wait for it or interact with it.
+    ///
+    /// Pass `Stdio::piped()` to obtain a readable `child.stdout` handle and
+    /// read the extension definition from it; pass `Stdio::inherit()` to
+    /// write the definition to the spawning process's own standard output.
+    fn spawn_with(&mut self, (stdio,): (Stdio,)) -> Result<Self::Output, Self::Error> {
+        self.setup_command(&self.bin)
+            .stdout(stdio)
+            .stderr(Stdio::piped())
+            .spawn()
+    }
+}
+
 // ---------------------------------------------------------------------------
 // run
 // ---------------------------------------------------------------------------
@@ -1657,9 +1735,10 @@ impl Extension<Run> {
 ///
 /// Determines which data is reported: installed extensions, their global
 /// configurations, or their instance configurations.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Type {
     /// Reports the installed extensions.
+    #[default]
     Extensions,
 
     /// Reports both global and instance configurations.
@@ -1699,10 +1778,11 @@ impl Type {
 /// The `--list` operation of `p4 extension`.
 ///
 /// Displays the installed extensions and their configurations, as selected
-/// by [`--type`](Extension::ty). Selected with [`ExtensionEntry::list`].
+/// by [`--type`](Extension::get_type). Selected with [`ExtensionEntry::list`]
+/// or one of its per-type shortcuts.
 #[derive(Debug, Clone, Default)]
 pub struct List {
-    ty: Option<Type>,
+    ty: Type,
 
     #[cfg(not(feature = "lt2022_2"))]
     path: Option<String>,
@@ -1710,11 +1790,7 @@ pub struct List {
 
 impl ExclusiveOption for List {
     fn inject_args(&self, command: &mut Command) {
-        command.arg("--list");
-
-        if let Some(ty) = &self.ty {
-            command.arg("--type").arg(ty.as_str());
-        }
+        command.arg("--list").arg("--type").arg(self.ty.as_str());
 
         #[cfg(not(feature = "lt2022_2"))]
         if let Some(path) = &self.path {
@@ -1736,42 +1812,8 @@ impl Extension<List> {
         not(feature = "lt2022_2"),
         doc = "Must be supplied with `--list`. Possible type values: extensions, global, instance, certs, configs (both global and instance). For example, `p4 extension --list --type certs`."
     )]
-    pub fn get_ty(&self) -> Option<Type> {
+    pub fn get_type(&self) -> Type {
         self.op.ty
-    }
-
-    /// # Description
-    ///
-    /// --type type
-    ///
-    #[cfg_attr(
-        feature = "lt2022_2",
-        doc = "Determines which data is reported: the installed extensions, their global configurations, or their instance configurations."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2022_2"),
-        doc = "Must be supplied with `--list`. Possible type values: extensions, global, instance, certs, configs (both global and instance). For example, `p4 extension --list --type certs`."
-    )]
-    pub fn set_ty(&mut self, v: Type) -> &mut Self {
-        self.op.ty = Some(v);
-        self
-    }
-
-    /// # Description
-    ///
-    /// --type type
-    ///
-    #[cfg_attr(
-        feature = "lt2022_2",
-        doc = "Determines which data is reported: the installed extensions, their global configurations, or their instance configurations."
-    )]
-    #[cfg_attr(
-        not(feature = "lt2022_2"),
-        doc = "Must be supplied with `--list`. Possible type values: extensions, global, instance, certs, configs (both global and instance). For example, `p4 extension --list --type certs`."
-    )]
-    pub fn ty(mut self, v: Type) -> Self {
-        self.op.ty = Some(v);
-        self
     }
 
     /// # Description
@@ -2031,7 +2073,7 @@ mod tests {
     #[test]
     fn list_with_type() {
         assert_eq!(
-            args(&entry().list().ty(Type::Configs)),
+            args(&entry().list(Type::Configs)),
             ["extension", "--list", "--type", "configs"]
         );
     }
@@ -2040,7 +2082,7 @@ mod tests {
     #[test]
     fn list_with_type_and_path() {
         assert_eq!(
-            args(&entry().list().ty(Type::Instance).path("//depot/...")),
+            args(&entry().list(Type::Instance).path("//depot/...")),
             [
                 "extension",
                 "--list",
@@ -2049,6 +2091,38 @@ mod tests {
                 "--path",
                 "//depot/..."
             ]
+        );
+    }
+
+    /// The per-type shortcuts build the same command line as `list` with
+    /// the matching [`Type`].
+    #[test]
+    fn list_shortcuts_select_the_type() {
+        assert_eq!(
+            args(&entry().list_extensions()),
+            ["extension", "--list", "--type", "extensions"]
+        );
+        assert_eq!(
+            args(&entry().list_configs()),
+            ["extension", "--list", "--type", "configs"]
+        );
+
+        #[cfg(not(feature = "lt2020_1"))]
+        {
+            assert_eq!(
+                args(&entry().list_global()),
+                ["extension", "--list", "--type", "global"]
+            );
+            assert_eq!(
+                args(&entry().list_instance()),
+                ["extension", "--list", "--type", "instance"]
+            );
+        }
+
+        #[cfg(not(feature = "lt2022_2"))]
+        assert_eq!(
+            args(&entry().list_certs()),
+            ["extension", "--list", "--type", "certs"]
         );
     }
 
