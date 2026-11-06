@@ -8,7 +8,7 @@ use crate::global::GlobalOpts;
 use crate::spawn::ParameterizedSpawn;
 
 /// Maximum value of the `-w` quiesce wait: one hour, in seconds.
-const MAX_QUIESCE_WAIT_SECONDS: u64 = 3600;
+const MAX_QUIESCE_WAIT_TIME_SECONDS: u64 = 3600;
 
 /// Maximum value of the `-v` verification time: twelve hours, in seconds.
 const MAX_VERIFICATION_TIME_SECONDS: u64 = 43_200;
@@ -50,7 +50,7 @@ pub struct Failback {
 
     yes: bool,
 
-    quiesce_wait: Option<u64>,
+    quiesce_wait_time: Option<u64>,
 
     verification_time: Option<u64>,
 }
@@ -64,7 +64,7 @@ impl Failback {
             bin: bin.into(),
             global_opts,
             yes: false,
-            quiesce_wait: None,
+            quiesce_wait_time: None,
             verification_time: None,
         }
     }
@@ -178,8 +178,8 @@ impl Failback {
     /// (immediate) and `3600` seconds (1 hour).
     ///
     /// To cancel the failback during the `quiesceWait` period, press Ctrl-C
-    pub fn get_quiesce_wait(&self) -> Option<u64> {
-        self.quiesce_wait
+    pub fn get_quiesce_wait_time(&self) -> Option<u64> {
+        self.quiesce_wait_time
     }
 
     /// # Description
@@ -201,12 +201,12 @@ impl Failback {
     /// (immediate) and `3600` seconds (1 hour).
     ///
     /// To cancel the failback during the `quiesceWait` period, press Ctrl-C
-    pub fn set_quiesce_wait(&mut self, v: u64) -> &mut Self {
+    pub fn set_quiesce_wait_time(&mut self, v: u64) -> &mut Self {
         debug_assert!(
-            v <= MAX_QUIESCE_WAIT_SECONDS,
-            "failback -w quiesce_wait must not exceed {MAX_QUIESCE_WAIT_SECONDS} seconds (1 hour)"
+            v <= MAX_QUIESCE_WAIT_TIME_SECONDS,
+            "failback -w quiesce_wait must not exceed {MAX_QUIESCE_WAIT_TIME_SECONDS} seconds (1 hour)"
         );
-        self.quiesce_wait = Some(v);
+        self.quiesce_wait_time = Some(v);
         self
     }
 
@@ -229,8 +229,8 @@ impl Failback {
     /// (immediate) and `3600` seconds (1 hour).
     ///
     /// To cancel the failback during the `quiesceWait` period, press Ctrl-C
-    pub fn quiesce_wait(mut self, v: u64) -> Self {
-        self.set_quiesce_wait(v);
+    pub fn quiesce_wait_time(mut self, v: u64) -> Self {
+        self.set_quiesce_wait_time(v);
         self
     }
 
@@ -335,8 +335,8 @@ impl SubCommand for Failback {
             command.arg("-y");
         }
 
-        if let Some(quiesce_wait) = self.quiesce_wait {
-            command.arg("-w").arg(quiesce_wait.to_string());
+        if let Some(quiesce_wait_time) = self.quiesce_wait_time {
+            command.arg("-w").arg(quiesce_wait_time.to_string());
         }
 
         if let Some(verification_time) = self.verification_time {
@@ -437,12 +437,12 @@ mod tests {
     }
 
     #[test]
-    fn quiesce_wait_and_verification_time() {
+    fn quiesce_wait_time_and_verification_time() {
         let failback = Failback::new("p4", GlobalOpts::new())
-            .quiesce_wait(90)
+            .quiesce_wait_time(90)
             .verification_time(500);
 
-        assert_eq!(failback.get_quiesce_wait(), Some(90));
+        assert_eq!(failback.get_quiesce_wait_time(), Some(90));
         assert_eq!(failback.get_verification_time(), Some(500));
         assert_eq!(
             args_of(&failback.setup_command("p4")),
@@ -454,7 +454,7 @@ mod tests {
     fn all_options_in_syntax_order() {
         let mut failback = Failback::new("p4", GlobalOpts::new()).yes(true);
         failback
-            .set_quiesce_wait(MAX_QUIESCE_WAIT_SECONDS)
+            .set_quiesce_wait_time(MAX_QUIESCE_WAIT_TIME_SECONDS)
             .set_verification_time(MAX_VERIFICATION_TIME_SECONDS);
 
         assert_eq!(
@@ -465,8 +465,9 @@ mod tests {
 
     #[test]
     #[should_panic(expected = "1 hour")]
-    fn quiesce_wait_above_maximum_panics_in_debug() {
-        let _ = Failback::new("p4", GlobalOpts::new()).quiesce_wait(MAX_QUIESCE_WAIT_SECONDS + 1);
+    fn quiesce_wait_time_above_maximum_panics_in_debug() {
+        let _ = Failback::new("p4", GlobalOpts::new())
+            .quiesce_wait_time(MAX_QUIESCE_WAIT_TIME_SECONDS + 1);
     }
 
     #[test]

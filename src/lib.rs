@@ -43,9 +43,13 @@ use crate::cmd::Export;
 use crate::cmd::ExtensionEntry;
 #[cfg(not(feature = "lt2022_1"))]
 use crate::cmd::Failback;
+#[cfg(not(feature = "lt2018_2"))]
+use crate::cmd::Failover;
 use crate::cmd::FileLog;
 use crate::cmd::Print;
 use crate::cmd::Sync;
+#[cfg(not(feature = "lt2018_2"))]
+use crate::cmd::Unselected;
 use crate::cmd::Where;
 use crate::global::GlobalOpts;
 
@@ -424,6 +428,21 @@ impl P4Cli {
     #[cfg(not(feature = "lt2022_1"))]
     pub fn cmd_failback(&self) -> Failback {
         Failback::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Fail over to a standby server.
+    ///
+    #[cfg_attr(
+        feature = "lt2025_1",
+        doc = "The current master server is the server from which the standby server makes its journalcopy. Without a mode transition, failover proceeds when the target server is accessible; use [`Failover::required_target`] to require participation or [`Failover::ignore_target`] to ignore the current master server."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2025_1"),
+        doc = "The current target server is the server from which the standby server makes its journalcopy. Without a mode transition, failover proceeds when the target server is accessible; use [`Failover::required_target`] to require participation or [`Failover::ignore_target`] to ignore the current target server."
+    )]
+    #[cfg(not(feature = "lt2018_2"))]
+    pub fn cmd_failover(&self) -> Failover<Unselected> {
+        Failover::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Print detailed information about the revisions of files.

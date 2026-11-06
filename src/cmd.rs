@@ -41,6 +41,8 @@ pub mod export;
 pub mod extension;
 #[cfg(not(feature = "lt2022_1"))]
 pub mod failback;
+#[cfg(not(feature = "lt2018_2"))]
+pub mod failover;
 pub mod filelog;
 pub mod print;
 pub mod sync;
@@ -103,6 +105,8 @@ pub use export::RawJournal;
 pub use extension::ExtensionEntry;
 #[cfg(not(feature = "lt2022_1"))]
 pub use failback::Failback;
+#[cfg(not(feature = "lt2018_2"))]
+pub use failover::{Failover, IgnoreTarget, RequireTarget};
 pub use filelog::FileLog;
 pub use print::Print;
 pub use sync::Sync;
