@@ -41,6 +41,8 @@ use crate::cmd::Edit;
 use crate::cmd::Export;
 #[cfg(not(feature = "lt2019_1"))]
 use crate::cmd::ExtensionEntry;
+#[cfg(not(feature = "lt2022_1"))]
+use crate::cmd::Failback;
 use crate::cmd::FileLog;
 use crate::cmd::Print;
 use crate::cmd::Sync;
@@ -407,6 +409,21 @@ impl P4Cli {
     #[cfg(not(feature = "lt2019_1"))]
     pub fn cmd_extension(&self) -> ExtensionEntry {
         ExtensionEntry::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    #[cfg_attr(
+        feature = "lt2025_1",
+        doc = "After a failover with master server participation, fail back to restore the previous role of that master server."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2025_1"),
+        doc = "After a failover with target server participation, fail back to restore the previous role of that target server."
+    )]
+    ///
+    /// Without [`Failback::yes`], the command merely reports what it would do.
+    #[cfg(not(feature = "lt2022_1"))]
+    pub fn cmd_failback(&self) -> Failback {
+        Failback::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Print detailed information about the revisions of files.
