@@ -45,12 +45,16 @@ use crate::cmd::ExtensionEntry;
 use crate::cmd::Failback;
 #[cfg(not(feature = "lt2018_2"))]
 use crate::cmd::Failover;
+#[cfg(not(feature = "lt2015_1"))]
+use crate::cmd::Fetch;
 use crate::cmd::FileLog;
 use crate::cmd::Print;
 use crate::cmd::Sync;
 #[cfg(not(feature = "lt2018_2"))]
 use crate::cmd::Unselected;
 use crate::cmd::Where;
+#[cfg(not(feature = "lt2015_1"))]
+use crate::cmd::fetch::Submitted;
 use crate::global::GlobalOpts;
 
 pub mod cmd;
@@ -443,6 +447,16 @@ impl P4Cli {
     #[cfg(not(feature = "lt2018_2"))]
     pub fn cmd_failover(&self) -> Failover<Unselected> {
         Failover::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Copy files from a remote server into a local server.
+    ///
+    /// The returned builder starts in the submitted-files syntax form with
+    /// no mode and no target selected; call [`Fetch::shelved`] to switch to
+    /// fetching a shelved changelist.
+    #[cfg(not(feature = "lt2015_1"))]
+    pub fn cmd_fetch(&self) -> Fetch<Submitted> {
+        Fetch::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Print detailed information about the revisions of files.

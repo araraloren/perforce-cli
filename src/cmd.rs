@@ -43,6 +43,8 @@ pub mod extension;
 pub mod failback;
 #[cfg(not(feature = "lt2018_2"))]
 pub mod failover;
+#[cfg(not(feature = "lt2015_1"))]
+pub mod fetch;
 pub mod filelog;
 pub mod print;
 pub mod sync;
@@ -106,7 +108,9 @@ pub use extension::ExtensionEntry;
 #[cfg(not(feature = "lt2022_1"))]
 pub use failback::Failback;
 #[cfg(not(feature = "lt2018_2"))]
-pub use failover::{Failover, IgnoreTarget, RequireTarget};
+pub use failover::Failover;
+#[cfg(not(feature = "lt2015_1"))]
+pub use fetch::Fetch;
 pub use filelog::FileLog;
 pub use print::Print;
 pub use sync::Sync;
