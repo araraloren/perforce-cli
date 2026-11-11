@@ -48,6 +48,7 @@ use crate::cmd::Failover;
 #[cfg(not(feature = "lt2015_1"))]
 use crate::cmd::Fetch;
 use crate::cmd::FileLog;
+use crate::cmd::Fix;
 use crate::cmd::Print;
 use crate::cmd::Sync;
 #[cfg(not(feature = "lt2018_2"))]
@@ -457,6 +458,14 @@ impl P4Cli {
     #[cfg(not(feature = "lt2015_1"))]
     pub fn cmd_fetch(&self) -> Fetch<Submitted> {
         Fetch::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Link jobs to the changelists that fix them.
+    ///
+    /// The returned builder requires a `-c changelist` selection before it
+    /// can be spawned; call [`Fix::changelist`] after the other options.
+    pub fn cmd_fix(&self) -> Fix {
+        Fix::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Print detailed information about the revisions of files.

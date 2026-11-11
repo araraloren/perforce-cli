@@ -46,6 +46,7 @@ pub mod failover;
 #[cfg(not(feature = "lt2015_1"))]
 pub mod fetch;
 pub mod filelog;
+pub mod fix;
 pub mod print;
 pub mod sync;
 pub mod r#where;
@@ -112,6 +113,8 @@ pub use failover::Failover;
 #[cfg(not(feature = "lt2015_1"))]
 pub use fetch::Fetch;
 pub use filelog::FileLog;
+pub use fix::Changelist;
+pub use fix::Fix;
 pub use print::Print;
 pub use sync::Sync;
 pub use r#where::Where;
