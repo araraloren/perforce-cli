@@ -48,6 +48,7 @@ use crate::cmd::Failover;
 #[cfg(not(feature = "lt2015_1"))]
 use crate::cmd::Fetch;
 use crate::cmd::FileLog;
+use crate::cmd::Files;
 use crate::cmd::Fix;
 use crate::cmd::Fixes;
 use crate::cmd::Print;
@@ -477,6 +478,22 @@ impl P4Cli {
     /// Print detailed information about the revisions of files.
     pub fn cmd_filelog(&self) -> FileLog {
         FileLog::new(self.bin.clone(), self.global_opts.clone())
+    }
+
+    /// Provide information about files in the depot without accessing their
+    /// contents.
+    ///
+    /// The returned builder uses the regular form.
+    #[cfg_attr(
+        feature = "lt2022_2",
+        doc = "Call [`Files::unload_depot`](crate::cmd::files::Files::unload_depot) to select `-U`."
+    )]
+    #[cfg_attr(
+        not(feature = "lt2022_2"),
+        doc = "Call [`Files::unload_depot`](crate::cmd::files::Files::unload_depot) for `-U`, or [`Files::stream_view`](crate::cmd::files::Files::stream_view) for `--streamviews`; the two forms are mutually exclusive."
+    )]
+    pub fn cmd_files(&self) -> Files {
+        Files::new(self.bin.clone(), self.global_opts.clone())
     }
 
     /// Print the contents of depot file revisions.

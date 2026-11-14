@@ -46,6 +46,7 @@ pub mod failover;
 #[cfg(not(feature = "lt2015_1"))]
 pub mod fetch;
 pub mod filelog;
+pub mod files;
 pub mod fix;
 pub mod fixes;
 pub mod print;
@@ -114,6 +115,7 @@ pub use failover::Failover;
 #[cfg(not(feature = "lt2015_1"))]
 pub use fetch::Fetch;
 pub use filelog::FileLog;
+pub use files::Files;
 pub use fix::Changelist;
 pub use fix::Fix;
 pub use fixes::Fixes;
